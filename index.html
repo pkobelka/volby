@@ -4,6 +4,8 @@
 <title>Volby 2026 – Obce okresu Svitavy (VHOS)</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%232f6b3c'/%3E%3Ctext x='50' y='52' font-size='58' text-anchor='middle' dominant-baseline='central'%3E%F0%9F%97%B3%EF%B8%8F%3C/text%3E%3C/svg%3E" />
 <meta name="theme-color" content="#2f6b3c" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -73,6 +75,14 @@ header p{color:#666;margin-top:4px;font-size:.92rem;}
 .hidden{display:none!important;}
 footer{text-align:center;margin-top:30px;font-size:.78rem;color:#aaa;}
 .hint{font-size:.74rem;color:#b3ab99;margin-top:8px;}
+.viewtabs{display:flex;gap:6px;margin:10px 0 2px;}
+.viewtab{border:1px solid var(--sedaramecek);background:#fff;border-radius:8px;padding:7px 14px;font-size:.86rem;cursor:pointer;color:#444;font-weight:600;}
+.viewtab.on{background:var(--zelena);color:#fff;border-color:var(--zelena);}
+#map{height:70vh;min-height:420px;border-radius:12px;border:1px solid #e0dccf;margin-top:8px;}
+.maplegend{font-size:.78rem;color:#777;margin-top:6px;display:flex;flex-wrap:wrap;gap:10px;}
+.maplegend span{display:inline-flex;align-items:center;gap:5px;}
+.maplegend i{width:12px;height:12px;border-radius:3px;display:inline-block;border:1px solid rgba(0,0,0,.15);}
+.leaflet-container{font:inherit;}
 </style></head><body>
 
 <div class="login" id="login">
@@ -102,8 +112,15 @@ footer{text-align:center;margin-top:30px;font-size:.78rem;color:#aaa;}
 <div class="chips" id="provChips"></div>
 <div class="chips sub" id="pracChips"></div>
 </div>
+<div class="viewtabs"><button class="viewtab on" id="tabList">Seznam</button><button class="viewtab" id="tabMap">🗺️ Mapa regionu</button></div>
 <div class="pocet" id="pocet"></div>
 <div class="grid" id="grid"></div>
+<div id="mapwrap" class="hidden"><div id="map"></div>
+<div class="maplegend">
+<span><i style="background:#3a7bd5"></i>Mor. Třebová</span><span><i style="background:#2f6b3c"></i>Svitavy</span>
+<span><i style="background:#c9822f"></i>Polička</span><span><i style="background:#7b4fa3"></i>Litomyšl</span>
+<span><i style="background:#b5453a"></i>Jevíčko</span><span><i style="background:#d9d4c6"></i>neprovozované</span>
+</div></div>
 <footer>Data: volby.cz KV2022 + weby obci · uzivatelske upravy ulozeny ve Firebase (moje-budky)</footer>
 </div>
 
@@ -299,5 +316,40 @@ document.getElementById("mclose").addEventListener("click",function(){document.g
 document.getElementById("modal").addEventListener("click",function(e){if(e.target.id==="modal")e.currentTarget.classList.remove("show");});
 document.addEventListener("keydown",function(e){if(e.key==="Escape")document.getElementById("modal").classList.remove("show");});
 document.getElementById("q").addEventListener("input",render);
+
+/* ---------- MAPA ---------- */
+var _map=null,_mapLayer=null,_mapLoaded=false;
+var PRACBARVA={"Moravská Třebová":"#3a7bd5","Svitavy":"#2f6b3c","Polička":"#c9822f","Litomyšl":"#7b4fa3","Jevíčko":"#b5453a"};
+function obecStyle(f){
+  var p=f.properties;
+  if(!p.provozovano) return {color:"#b8b2a2",weight:1,fillColor:"#d9d4c6",fillOpacity:.4};
+  return {color:"#33506a",weight:1.2,fillColor:PRACBARVA[p.pracoviste]||"#2f6b3c",fillOpacity:.55};
+}
+function initMap(){
+  if(_mapLoaded) return; _mapLoaded=true;
+  if(typeof L==="undefined"){document.getElementById("map").innerHTML="<p style='padding:12px'>Mapová knihovna se nenačetla (zkontroluj připojení).</p>";return;}
+  _map=L.map("map").setView([49.75,16.45],10);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(_map);
+  fetch("hranice.json").then(function(r){return r.json();}).then(function(gj){
+    _mapLayer=L.geoJSON(gj,{style:obecStyle,onEachFeature:function(f,layer){
+      var p=f.properties;
+      layer.bindTooltip(esc(p.nazev)+(p.provozovano?" · "+esc(p.pracoviste):" · neprovozováno"),{sticky:true});
+      layer.on("click",function(){var o=OBCE.filter(function(x){return x.kod===p.kod;})[0]; if(o) openModal(o);});
+      layer.on("mouseover",function(){layer.setStyle({weight:2.5,fillOpacity:.72});});
+      layer.on("mouseout",function(){if(_mapLayer)_mapLayer.resetStyle(layer);});
+    }}).addTo(_map);
+    try{_map.fitBounds(_mapLayer.getBounds(),{padding:[12,12]});}catch(e){}
+  }).catch(function(e){document.getElementById("map").innerHTML="<p style='padding:12px'>Hranice obcí se nepodařilo načíst: "+esc(e.message||String(e))+"</p>";});
+}
+function showView(mapa){
+  document.getElementById("pocet").classList.toggle("hidden",mapa);
+  document.getElementById("grid").classList.toggle("hidden",mapa);
+  document.getElementById("mapwrap").classList.toggle("hidden",!mapa);
+  document.getElementById("tabList").classList.toggle("on",!mapa);
+  document.getElementById("tabMap").classList.toggle("on",mapa);
+  if(mapa){initMap(); setTimeout(function(){if(_map)_map.invalidateSize();},120);}
+}
+document.getElementById("tabList").addEventListener("click",function(){showView(false);});
+document.getElementById("tabMap").addEventListener("click",function(){showView(true);});
 </script>
 </body></html>
