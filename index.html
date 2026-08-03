@@ -265,17 +265,21 @@ function renderModal(){
   var head="<h2>"+esc(o.nazev)+"</h2><div class='mbadges'>"+badgesHTML(o)+"</div>";
   var contact;
   if(_EDIT){
-    contact=editRow("Starosta","e_starosta",o.starosta)+editRow("Místostarosta","e_mistostarosta",o.mistostarosta)+
-      editRow("E-mail","e_email",o.email)+editRow("Telefon","e_tel",o.tel)+editRow("Web","e_web",o.web)+editRow("Adresa úřadu","e_adresa",o.adresa);
+    contact=editRow("Starosta","e_starosta",o.starosta)+
+      editRow("Starosta – telefon","e_starosta_tel",o.starosta_tel)+editRow("Starosta – e-mail","e_starosta_email",o.starosta_email)+
+      editRow("Místostarosta","e_mistostarosta",o.mistostarosta)+
+      editRow("E-mail úřadu","e_email",o.email)+editRow("Telefon úřadu","e_tel",o.tel)+editRow("Web","e_web",o.web)+editRow("Adresa úřadu","e_adresa",o.adresa);
   }else{
-    contact=viewRow("Starosta",o.starosta)+viewRow("Místostarosta",o.mistostarosta);
+    contact=viewRow("Starosta",o.starosta)+
+      viewRow("Starosta – telefon",o.starosta_tel,"tel")+viewRow("Starosta – e-mail",o.starosta_email,"email")+
+      viewRow("Místostarosta",o.mistostarosta);
   }
   var body=head+
     "<div class='sekce'>Současnost <span class='obd'>· období 2022–2026</span></div>"+
     contact+
     "<div class='r'><b>Zastupitelstvo"+(z22.length?" ("+z22.length+")":"")+"</b><span>"+zastList(z22,"— k doplnění —")+"</span></div>";
   if(!_EDIT){
-    body+=viewRow("E-mail",o.email,"email")+viewRow("Telefon",o.tel,"tel")+viewRow("Web",o.web,"web")+viewRow("Adresa úřadu",o.adresa);
+    body+=viewRow("E-mail úřadu",o.email,"email")+viewRow("Telefon úřadu",o.tel,"tel")+viewRow("Web",o.web,"web")+viewRow("Adresa úřadu",o.adresa);
   }
   body+="<div class='sekce'>Po volbách <span class='obd'>· období 2026–2030</span></div>"+
     "<div class='r'><b>Zastupitelstvo"+(z26.length?" ("+z26.length+")":"")+"</b><span>"+zastList(z26,"— doplní se po volbách 2026 —")+"</span></div>";
@@ -302,7 +306,9 @@ function renderModal(){
 }
 function saveEdit(){
   var o=_CUR;var g=function(id){return (document.getElementById(id).value||"").trim();};
-  var upd={starosta:g("e_starosta"),mistostarosta:g("e_mistostarosta"),email:g("e_email"),tel:g("e_tel"),web:g("e_web"),adresa:g("e_adresa"),
+  var upd={starosta:g("e_starosta"),mistostarosta:g("e_mistostarosta"),
+    starosta_tel:g("e_starosta_tel"),starosta_email:g("e_starosta_email"),
+    email:g("e_email"),tel:g("e_tel"),web:g("e_web"),adresa:g("e_adresa"),
     upravil:_USER.email,upravil_ts:Date.now()};
   document.getElementById("mmsg").textContent="Ukládám…";
   FDB.ref("volby_obce/"+o.kod).update(upd).then(function(){
@@ -370,7 +376,7 @@ function focusObec(kod){
 }
 document.getElementById("tabList").addEventListener("click",function(){showView(false);});
 document.getElementById("tabMap").addEventListener("click",function(){showView(true);});
-var VERZE="2026-08-03 · v5 (obrys okresu Svitavy)";
+var VERZE="2026-08-03 · v6 (kontakt na starostu: telefon + e-mail)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
