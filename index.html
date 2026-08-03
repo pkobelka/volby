@@ -320,8 +320,9 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape")document.get
 document.getElementById("q").addEventListener("input",render);
 
 /* ---------- MAPA ---------- */
-var _map=null,_mapLayer=null,_mapLoaded=false,_layerByKod={},_pendingFocus=null;
+var _map=null,_mapLayer=null,_mapLoaded=false,_layerByKod={},_pendingFocus=null,_focusedLayer=null;
 var PRACBARVA={"Moravská Třebová":"#3a7bd5","Svitavy":"#2f6b3c","Polička":"#c9822f","Litomyšl":"#7b4fa3","Jevíčko":"#b5453a"};
+var FOCUS_ST={weight:3.5,color:"#111",fillOpacity:.85};
 function obecStyle(f){
   var p=f.properties;
   if(!p.provozovano) return {color:"#b8b2a2",weight:1,fillColor:"#d9d4c6",fillOpacity:.4};
@@ -339,7 +340,7 @@ function initMap(){
       layer.bindTooltip(esc(p.nazev)+(p.provozovano?" · "+esc(p.pracoviste):" · neprovozováno"),{sticky:true});
       layer.on("click",function(){var o=OBCE.filter(function(x){return x.kod===p.kod;})[0]; if(o) openModal(o);});
       layer.on("mouseover",function(){layer.setStyle({weight:2.5,fillOpacity:.72});});
-      layer.on("mouseout",function(){if(_mapLayer)_mapLayer.resetStyle(layer);});
+      layer.on("mouseout",function(){if(layer===_focusedLayer){layer.setStyle(FOCUS_ST);layer.bringToFront();}else if(_mapLayer){_mapLayer.resetStyle(layer);}});
     }}).addTo(_map);
     try{_map.fitBounds(_mapLayer.getBounds(),{padding:[12,12]});}catch(e){}
     if(_pendingFocus){doFocus(_pendingFocus);_pendingFocus=null;}
@@ -355,10 +356,10 @@ function showView(mapa){
 }
 function doFocus(kod){
   var ly=_layerByKod[kod]; if(!ly||!_map) return;
+  if(_focusedLayer&&_mapLayer){_mapLayer.resetStyle(_focusedLayer);}
+  _focusedLayer=ly;
   try{_map.fitBounds(ly.getBounds(),{maxZoom:13,padding:[40,40]});}catch(e){}
-  ly.openTooltip();
-  ly.setStyle({weight:3,color:"#111",fillOpacity:.82});
-  setTimeout(function(){if(_mapLayer)_mapLayer.resetStyle(ly);},1900);
+  ly.setStyle(FOCUS_ST); ly.bringToFront(); ly.openTooltip();
 }
 function focusObec(kod){
   document.getElementById("modal").classList.remove("show");
@@ -367,7 +368,7 @@ function focusObec(kod){
 }
 document.getElementById("tabList").addEventListener("click",function(){showView(false);});
 document.getElementById("tabMap").addEventListener("click",function(){showView(true);});
-var VERZE="2026-08-03 · v3 (mapa + zobrazit v mapě)";
+var VERZE="2026-08-03 · v4 (zvýraznění obce v mapě)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
