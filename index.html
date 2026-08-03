@@ -120,6 +120,7 @@ footer{text-align:center;margin-top:30px;font-size:.78rem;color:#aaa;}
 <span><i style="background:#3a7bd5"></i>Mor. Třebová</span><span><i style="background:#2f6b3c"></i>Svitavy</span>
 <span><i style="background:#c9822f"></i>Polička</span><span><i style="background:#7b4fa3"></i>Litomyšl</span>
 <span><i style="background:#b5453a"></i>Jevíčko</span><span><i style="background:#d9d4c6"></i>neprovozované</span>
+<span><i style="background:#7a2f22;width:18px;height:3px;border:none;border-radius:0"></i>hranice okresu</span>
 </div></div>
 <footer>Data: volby.cz KV2022 + weby obci · úpravy ve Firebase (moje-budky) · <b id="verze"></b></footer>
 </div>
@@ -343,6 +344,7 @@ function initMap(){
       layer.on("mouseout",function(){if(layer===_focusedLayer){layer.setStyle(FOCUS_ST);layer.bringToFront();}else if(_mapLayer){_mapLayer.resetStyle(layer);}});
     }}).addTo(_map);
     try{_map.fitBounds(_mapLayer.getBounds(),{padding:[12,12]});}catch(e){}
+    fetch("okres.json").then(function(r){return r.json();}).then(function(g){L.geoJSON(g,{interactive:false,style:{color:"#7a2f22",weight:4,fill:false}}).addTo(_map).bringToFront();}).catch(function(){});
     if(_pendingFocus){doFocus(_pendingFocus);_pendingFocus=null;}
   }).catch(function(e){document.getElementById("map").innerHTML="<p style='padding:12px'>Hranice obcí se nepodařilo načíst: "+esc(e.message||String(e))+"</p>";});
 }
@@ -368,7 +370,7 @@ function focusObec(kod){
 }
 document.getElementById("tabList").addEventListener("click",function(){showView(false);});
 document.getElementById("tabMap").addEventListener("click",function(){showView(true);});
-var VERZE="2026-08-03 · v4 (zvýraznění obce v mapě)";
+var VERZE="2026-08-03 · v5 (obrys okresu Svitavy)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
