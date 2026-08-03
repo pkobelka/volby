@@ -289,8 +289,6 @@ function renderModal(){
   if(!_EDIT){
     body+=viewRow("E-mail úřadu",o.email,"email")+viewRow("Telefon úřadu",o.tel,"tel")+viewRow("Web",o.web,"web")+viewRow("Adresa úřadu",o.adresa);
   }
-  body+="<div class='sekce'>Po volbách <span class='obd'>· období 2026–2030</span></div>"+
-    "<div class='r'><b>Zastupitelstvo"+(z26.length?" ("+z26.length+")":"")+"</b><span>"+zastList(z26,"— doplní se po volbách 2026 —")+"</span></div>";
   // nástroje
   if(_EDIT){
     body+="<div class='mtools'><button class='btn' id='saveBtn'>💾 Uložit</button><button class='btn ghost' id='cancelBtn'>Zrušit</button></div>";
@@ -384,7 +382,7 @@ function focusObec(kod){
 }
 document.getElementById("tabList").addEventListener("click",function(){showView(false);});
 document.getElementById("tabMap").addEventListener("click",function(){showView(true);});
-var VERZE="2026-08-03 · v7 (volební období nahoře)";
+var VERZE="2026-08-03 · v8 (detail bez bloku 2026-2030)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
