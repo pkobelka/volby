@@ -101,6 +101,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 .cal{cursor:pointer;margin-left:6px;user-select:none;}
 .secedit{cursor:pointer;user-select:none;margin-left:auto;}
 .navdel{cursor:pointer;color:#a8482f;margin-left:6px;}
+.navexport{cursor:pointer;color:var(--zelena);text-decoration:underline;font-weight:600;}
 .viewtabs{display:flex;gap:6px;margin:10px 0 2px;}
 .viewtab{border:1px solid var(--sedaramecek);background:#fff;border-radius:8px;padding:7px 14px;font-size:.86rem;cursor:pointer;color:#444;font-weight:600;}
 .viewtab.on{background:var(--zelena);color:#fff;border-color:var(--zelena);}
@@ -153,6 +154,10 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <div class="pocet" id="svpocet"></div>
 <div class="grid" id="svgrid"></div>
 </div>
+<div id="navwrap" class="hidden">
+<div class="pocet" id="navpocet"></div>
+<div class="grid" id="navgrid"></div>
+</div>
 <div id="mapwrap" class="hidden"><div id="map"></div>
 <div class="maplegend">
 <span><i style="background:#3a7bd5"></i>Mor. Třebová</span><span><i style="background:#2f6b3c"></i>Svitavy</span>
@@ -191,7 +196,7 @@ function hl(text,q){
   return esc(text.slice(0,s))+"<mark>"+esc(text.slice(s,e+1))+"</mark>"+esc(text.slice(e+1));
 }
 
-var OBCE=[], SVAZKY=[], _USER=null, _CUR=null, _EDIT=false, _CURSV=null, _EDITSV=false, _Q="", _VIEW="list", _showAll=false, _navTmp=[];
+var OBCE=[], SVAZKY=[], _USER=null, _CUR=null, _EDIT=false, _CURSV=null, _EDITSV=false, _Q="", _VIEW="list", _showAll=false, _navTmp=[], _svErr="";
 var PRAC=["Moravská Třebová","Svitavy","Polička","Litomyšl","Jevíčko"];
 var fProv="Vše", fPrac="Vše";
 
@@ -264,9 +269,11 @@ function updateStav(){
 /* ---------- SVAZKY VODOVODŮ ---------- */
 function loadSvazky(){
   FDB.ref("volby_svazky").on("value",function(snap){
-    var v=snap.val()||{};
+    _svErr="";var v=snap.val()||{};
     SVAZKY=Object.keys(v).map(function(k){return v[k];}).sort(function(a,b){return (a.nazev||"").localeCompare(b.nazev||"","cs");});
     renderSvazky();initProv();
+  },function(err){
+    _svErr=(err&&err.message)?err.message:String(err);SVAZKY=[];renderSvazky();initProv();
   });
 }
 function obecByKod(k){for(var i=0;i<OBCE.length;i++){if(OBCE[i].kod===k)return OBCE[i];}return null;}
@@ -289,7 +296,8 @@ function svCard(s,q){
 function renderSvazky(){
   var g=document.getElementById("svgrid");g.innerHTML="";
   var qEl=document.getElementById("q"), q=qEl?fold(qEl.value.trim()):"";
-  if(!SVAZKY.length){document.getElementById("svpocet").textContent="0 svazků vodovodů";g.innerHTML="<div class='stav' style='grid-column:1/-1'>Svazky vodovodů zatím nejsou ve Firebase. Přihlášený uživatel je doplní tlačítkem <b>„Doplnit kontakty z IM seznamu“</b> dole v patičce.</div>";return;}
+  if(_svErr){document.getElementById("svpocet").textContent="0 svazků";g.innerHTML="<div class='stav' style='grid-column:1/-1'>⚠️ Svazky se nepodařilo načíst: <b>"+esc(_svErr)+"</b>. Nejspíš chybí pravidlo pro uzel <b>volby_svazky</b> ve Firebase (dej ho stejné jako u <b>volby_obce</b>).</div>";return;}
+  if(!SVAZKY.length){document.getElementById("svpocet").textContent="0 svazků vodovodů";g.innerHTML="<div class='stav' style='grid-column:1/-1'>Svazky vodovodů zatím nejsou ve Firebase. Přihlášený uživatel je nahraje tlačítkem <b>„Importovat kontakty ze souboru“</b> (vyber i <b>svazky.json</b>).</div>";return;}
   var list=SVAZKY.filter(function(s){return !q||matchSvazek(s,q);});
   document.getElementById("svpocet").textContent=list.length+" svazků vodovodů (DSO)"+(q?" (hledání ve všech)":"");
   list.forEach(function(s){g.appendChild(svCard(s,q));});
@@ -358,11 +366,14 @@ function provOK(o){return fProv==="Vše"||(fProv==="Provozované"&&o.provozovano
 function initProv(){
   var box=document.getElementById("provChips");box.innerHTML="";
   var opts=[["Vše",OBCE.length],["Provozované",OBCE.filter(function(o){return o.provozovano;}).length],["Neprovozované",OBCE.filter(function(o){return !o.provozovano;}).length]];
-  opts.forEach(function(p){var c=document.createElement("div");c.className="chip"+(p[0]===fProv&&_VIEW!=="svazky"?" on":"");c.textContent=p[0]+" ("+p[1]+")";
+  opts.forEach(function(p){var c=document.createElement("div");c.className="chip"+(p[0]===fProv&&_VIEW==="list"?" on":"");c.textContent=p[0]+" ("+p[1]+")";
     c.addEventListener("click",function(){fProv=p[0];if(fProv==="Neprovozované")fPrac="Vše";showView("list");initProv();initPrac();render();});box.appendChild(c);});
   // Svazky vodovodů – vedle Neprovozované
   var sv=document.createElement("div");sv.className="chip svz"+(_VIEW==="svazky"?" on":"");sv.textContent="💧 Svazky ("+SVAZKY.length+")";
   sv.addEventListener("click",function(){showView("svazky");initProv();});box.appendChild(sv);
+  // Plánované návštěvy
+  var nv=document.createElement("div");nv.className="chip svz"+(_VIEW==="navstevy"?" on":"");nv.textContent="🚗 Návštěvy ("+allVisits(true).length+")";
+  nv.addEventListener("click",function(){showView("navstevy");initProv();});box.appendChild(nv);
 }
 function initPrac(){
   var box=document.getElementById("pracChips");box.innerHTML="";
@@ -466,6 +477,49 @@ function listCal(arr,sum,loc){
   if(!arr||!arr.length)return "<span class='prazdne'>—</span>";
   return "<ul class='zast'>"+arr.map(function(x){var p=parseDMY(x);return "<li>"+hl(x,_Q)+(p?calLink(sum,loc,p,x):"")+"</li>";}).join("")+"</ul>";}
 function icsEsc(s){return String(s||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\n/g,"\\n");}
+function dmy(iso){var p=iso.split("-");return p[2]+"."+p[1]+"."+p[0];}
+function todayISO(){var d=new Date();return d.getFullYear()+"-"+two(d.getMonth()+1)+"-"+two(d.getDate());}
+function allVisits(upcomingOnly){
+  var t=todayISO(),out=[];
+  OBCE.forEach(function(o){(o.navstevy||[]).forEach(function(x){var p=parseDMY(x);if(!p)return;if(upcomingOnly&&p.d<t)return;out.push({kod:o.kod,obec:o.nazev,d:p.d,t:p.t,raw:x});});});
+  out.sort(function(a,b){return (a.d+(a.t||"99")).localeCompare(b.d+(b.t||"99"));});
+  return out;
+}
+function icsEvent(sum,loc,d,t,desc){
+  var dc=d.replace(/-/g,""),L=["BEGIN:VEVENT"];
+  var now=new Date();L.push("UID:"+dc+(t?t.replace(':',''):'')+"-"+Math.round(Math.random()*1e9)+"@volby-vhos");
+  L.push("DTSTAMP:"+now.getUTCFullYear()+two(now.getUTCMonth()+1)+two(now.getUTCDate())+"T"+two(now.getUTCHours())+two(now.getUTCMinutes())+two(now.getUTCSeconds())+"Z");
+  if(t){var hh=+t.split(':')[0],mi=t.split(':')[1];L.push("DTSTART:"+dc+"T"+two(hh)+mi+"00");L.push("DTEND:"+dc+"T"+two((hh+1)%24)+mi+"00");}
+  else L.push("DTSTART;VALUE=DATE:"+dc);
+  L.push("SUMMARY:"+icsEsc(sum));if(loc)L.push("LOCATION:"+icsEsc(loc));if(desc)L.push("DESCRIPTION:"+icsEsc(desc));
+  L.push("END:VEVENT");return L.join("\r\n");
+}
+function icsDownloadText(name,vevents){
+  var body="BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//volby-vhos//CS\r\nCALSCALE:GREGORIAN\r\n"+vevents.join("\r\n")+"\r\nEND:VCALENDAR";
+  var blob=new Blob([body],{type:"text/calendar;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=name+".ics";document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(url);},3000);
+}
+function exportAllVisits(){
+  var v=allVisits(true);if(!v.length)return;
+  icsDownloadText("navstevy_planovane",v.map(function(it){return icsEvent("Návštěva "+it.obec,it.obec,it.d,it.t,it.raw);}));
+}
+function renderNavstevyView(){
+  var g=document.getElementById("navgrid");g.innerHTML="";
+  var v=allVisits(true);
+  document.getElementById("navpocet").innerHTML=v.length+" plánovaných návštěv"+(v.length?" · <span class='navexport'>📅 export vše do kalendáře</span>":"");
+  var ex=document.querySelector("#navpocet .navexport");if(ex)ex.addEventListener("click",exportAllVisits);
+  if(!v.length){g.innerHTML="<div class='stav' style='grid-column:1/-1'>Žádné plánované návštěvy (od dneška dál). Přidej je v detailu obce → 🚗 Návštěvy → ✏️.</div>";return;}
+  v.forEach(function(it){
+    var d=document.createElement("div");d.className="obec";
+    d.innerHTML="<h3>"+esc(dmy(it.d))+(it.t?" "+esc(it.t):"")+"</h3>"+
+      "<div class='badges'><span class='b prac'>"+esc(it.obec)+"</span>"+
+      "<span class='cal' data-sum=\"Návštěva "+esc(it.obec)+"\" data-loc=\""+esc(it.obec)+"\" data-d='"+it.d+"' data-t='"+(it.t||"")+"' data-desc=\""+esc(it.raw)+"\" title='Do kalendáře'>📅</span></div>"+
+      "<div class='hint'>"+esc(it.raw.replace(/^[^—]*—\s*/,"").trim()||"návštěva")+" · klikni pro obec</div>";
+    d.querySelector(".cal").addEventListener("click",function(e){e.stopPropagation();icsFromEl(e.currentTarget);});
+    d.addEventListener("click",function(){var o=obecByKod(it.kod);if(o)openModal(o);});
+    g.appendChild(d);
+  });
+}
 function icsFromEl(el){
   var d=el.getAttribute("data-d"),t=el.getAttribute("data-t"),sum=el.getAttribute("data-sum"),loc=el.getAttribute("data-loc"),desc=el.getAttribute("data-desc");
   var dc=d.replace(/-/g,"");var now=new Date();
@@ -620,6 +674,7 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape")document.get
 document.getElementById("q").addEventListener("input",function(){
   var qv=document.getElementById("q").value.trim();
   if(qv && _VIEW!=="list"){showView("list");initProv();}  // při hledání vždy do seznamu a hledej ve všem
+  if(!qv){_showAll=false;fProv="Vše";fPrac="Vše";initProv();initPrac();}  // prázdné hledání -> zpět na úvodní okno
   render();renderSvazky();
 });
 
@@ -651,16 +706,18 @@ function initMap(){
     if(_pendingFocus){doFocus(_pendingFocus);_pendingFocus=null;}
   }).catch(function(e){document.getElementById("map").innerHTML="<p style='padding:12px'>Hranice obcí se nepodařilo načíst: "+esc(e.message||String(e))+"</p>";});
 }
-function showView(view){ // 'list' | 'map' | 'svazky'
+function showView(view){ // 'list' | 'map' | 'svazky' | 'navstevy'
   _VIEW=view;
-  var isList=view==="list", isMap=view==="map", isSv=view==="svazky";
+  var isList=view==="list", isMap=view==="map", isSv=view==="svazky", isNav=view==="navstevy";
   document.getElementById("pocet").classList.toggle("hidden",!isList);
   document.getElementById("grid").classList.toggle("hidden",!isList);
   document.getElementById("mapwrap").classList.toggle("hidden",!isMap);
   document.getElementById("svazkywrap").classList.toggle("hidden",!isSv);
+  document.getElementById("navwrap").classList.toggle("hidden",!isNav);
   document.getElementById("tabList").classList.toggle("on",isList);
   document.getElementById("tabMap").classList.toggle("on",isMap);
   if(isSv)renderSvazky();
+  if(isNav)renderNavstevyView();
   if(isMap){initMap(); setTimeout(function(){if(_map)_map.invalidateSize();},120);}
 }
 function doFocus(kod){
@@ -774,7 +831,7 @@ function runImport(K, SV, log){
 }
 document.getElementById("importIM").addEventListener("click",importIM);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-04 · v19 (✏️ přímá úprava poznámky/návštěvy, návštěva s datem+kalendářem)";
+var VERZE="2026-08-04 · v20 (přehled plánovaných návštěv + export do kalendáře; hláška u svazků)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
