@@ -215,9 +215,11 @@ function updateStav(){
   var nProv=OBCE.filter(function(o){return o.provozovano;}).length;
   var sZast=OBCE.reduce(function(a,o){return a+(o.pocet_zast||(o.zastupitelstvo?o.zastupitelstvo.length:0));},0);
   var over=OBCE.filter(function(o){return o.overeno;}).length;
+  var prov=OBCE.filter(function(o){return o.proverit;}).length;
   document.getElementById("stav").innerHTML=
     "Vsech "+OBCE.length+" obci ("+nProv+" provozuje VHOS + "+(OBCE.length-nProv)+" neprovozovanych). "+
-    "Obdobi 2022–2026 z voleb 2022 ("+sZast+" zastupitelu). Overeno starostu: "+over+" obci. Klikni na obec pro detail a upravy.";
+    "Obdobi 2022–2026 z voleb 2022 ("+sZast+" zastupitelu). Overeno starostu: "+over+" obci. "+
+    (prov?"🔎 K prověření: "+prov+" obci. ":"")+"Klikni na obec pro detail a upravy.";
 }
 
 /* ---------- SVAZKY VODOVODŮ ---------- */
@@ -303,6 +305,7 @@ function initPrac(){
 function badgesHTML(o){var mimo=o.okres!=="Svitavy";
   return (o.provozovano?"<span class='b prac'>"+esc(o.pracoviste)+"</span>":"<span class='b np'>neprovozováno</span>")+
     (mimo?"<span class='b mimo'>okres "+esc(o.okres)+"</span>":"")+
+    (o.proverit?"<span class='b over'>🔎 k prověření</span>":"")+
     (o.overeno?"<span class='b ok'>✔ ověřeno</span>":(o.jistota==="nízká"?"<span class='b over'>starosta ověřit</span>":""));}
 function groupHdr(g,provoz){var h=document.createElement("div");h.className="grouphdr"+(provoz?"":" npg");
   var n=OBCE.filter(function(o){return o.provozovano===provoz;}).length;
@@ -366,8 +369,10 @@ function renderModal(){
   }else{
     body+="<div class='mtools'><button class='btn' id='editBtn'>✏️ Upravit</button>"+
       "<button class='btn ghost' id='overBtn'>"+(o.overeno?"✔ Ověřeno (zrušit)":"Označit starostu ověřeno")+"</button>"+
+      "<button class='btn ghost' id='proveritBtn'>"+(o.proverit?"🔎 Prověřuje se (zrušit)":"🔎 Označit k prověření")+"</button>"+
       "<button class='btn ghost' id='mapBtn'>🗺️ Zobrazit v mapě</button></div>"+
-      (o.overil?"<div class='zdroj'>ověřil: "+esc(o.overil)+"</div>":"");
+      (o.overil?"<div class='zdroj'>ověřil: "+esc(o.overil)+"</div>":"")+
+      (o.proverit?"<div class='zdroj'>k prověření označil: "+esc(o.proverit_by||"?")+"</div>":"");
   }
   body+="<div class='msg' id='mmsg'></div>"+
     "<div class='zdroj'>zastupitelstvo 2022–2026: volby.cz KV2022"+(o.zdroj?" | kontakt: "+esc(o.zdroj):"")+"</div>";
@@ -378,6 +383,7 @@ function renderModal(){
   }else{
     document.getElementById("editBtn").addEventListener("click",function(){_EDIT=true;renderModal();});
     document.getElementById("overBtn").addEventListener("click",toggleOvereno);
+    document.getElementById("proveritBtn").addEventListener("click",toggleProverit);
     document.getElementById("mapBtn").addEventListener("click",function(){focusObec(o.kod);});
   }
 }
@@ -395,6 +401,12 @@ function saveEdit(){
 function toggleOvereno(){
   var o=_CUR;var nv=!o.overeno;
   var upd=nv?{overeno:true,overil:_USER.email,overeno_ts:Date.now()}:{overeno:false,overil:null,overeno_ts:null};
+  document.getElementById("mmsg").textContent="Ukládám…";
+  FDB.ref("volby_obce/"+o.kod).update(upd).then(function(){Object.assign(o,upd);renderModal();}).catch(function(e){document.getElementById("mmsg").textContent="⚠️ "+(e&&e.message?e.message:e);});
+}
+function toggleProverit(){
+  var o=_CUR;var nv=!o.proverit;
+  var upd=nv?{proverit:true,proverit_by:_USER.email,proverit_ts:Date.now()}:{proverit:false,proverit_by:null,proverit_ts:null};
   document.getElementById("mmsg").textContent="Ukládám…";
   FDB.ref("volby_obce/"+o.kod).update(upd).then(function(){Object.assign(o,upd);renderModal();}).catch(function(e){document.getElementById("mmsg").textContent="⚠️ "+(e&&e.message?e.message:e);});
 }
@@ -475,13 +487,14 @@ function importIM(){
     function empty(v){return v===undefined||v===null||v==="";}
     // Obce a svazky zapisujeme ODDĚLENĚ – zápis svazků (nový uzel) nesmí shodit
     // import obcí, pokud pro 'volby_svazky' ještě nejsou pravidla ve Firebase.
-    var updObce={}, updSvazky={}, nObce=0, nPoli=0, nPresk=0;
+    var updObce={}, updSvazky={}, nObce=0, nPoli=0, nPresk=0, nStruct=0;
     var CF=["starosta","starosta_tel","starosta_email","mistostarosta","email","tel","adresa"];
-    // OBCE – zajisti základní identitu u všech 120, doplň prázdná kontaktní pole
+    // OBCE – strukturni pole (kod/nazev/provozovano/pracoviste/okres) vzdy srovnej
+    // podle hranice.json (zdroj pravdy); kontaktni pole doplnuj jen kdyz jsou prazdna
     Object.keys(base).forEach(function(kod){
       var b=base[kod], cur=CUR[kod]||{}, u={};
       ["kod","nazev","provozovano","pracoviste","okres"].forEach(function(bf){
-        if(b[bf]!==undefined && empty(cur[bf])) u[bf]=b[bf];
+        if(b[bf]!==undefined && cur[bf]!==b[bf]){u[bf]=b[bf];nStruct++;}
       });
       var k=K[kod], hadContact=false;
       if(k){
@@ -523,7 +536,7 @@ function importIM(){
     }).then(function(r){
       var parts=[];
       if(r.ro.skip) parts.push("obce: nic k doplnění");
-      else if(r.ro.ok) parts.push("✅ obce: doplněno <b>"+nPoli+"</b> polí u <b>"+nObce+"</b> obcí (přeskočeno "+nPresk+")");
+      else if(r.ro.ok) parts.push("✅ obce: doplněno <b>"+nPoli+"</b> polí u <b>"+nObce+"</b> obcí (přeskočeno "+nPresk+")"+(nStruct?", srovnáno "+nStruct+" strukturních polí":""));
       else parts.push("⚠️ obce selhaly: "+esc(r.ro.err));
       if(r.rs.skip) parts.push("svazky: nic k doplnění");
       else if(r.rs.ok) parts.push("✅ svazky vodovodů: <b>"+nSv+"</b>");
@@ -534,7 +547,7 @@ function importIM(){
   }).catch(function(e){log.textContent="⚠️ Chyba při importu: "+(e&&e.message?e.message:e);btn.disabled=false;});
 }
 document.getElementById("importIM").addEventListener("click",importIM);
-var VERZE="2026-08-04 · v10 (import: obce a svazky odděleně)";
+var VERZE="2026-08-04 · v11 (Svitavy+Litomyšl neprovozované; tlačítko k prověření)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
