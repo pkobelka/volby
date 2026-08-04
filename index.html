@@ -109,6 +109,8 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 .maplegend{font-size:.78rem;color:#777;margin-top:6px;display:flex;flex-wrap:wrap;gap:10px;}
 .maplegend span{display:inline-flex;align-items:center;gap:5px;}
 .maplegend i{width:12px;height:12px;border-radius:3px;display:inline-block;border:1px solid rgba(0,0,0,.15);}
+#map.mapfull{position:fixed;left:0;top:0;width:100vw;height:100vh;height:100dvh;border-radius:0;border:none;margin:0;z-index:1000;}
+#mapClose{position:fixed;top:12px;right:12px;z-index:1001;background:#2f6b3c;color:#fff;border:none;border-radius:8px;padding:9px 13px;font-size:.9rem;font-weight:600;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.35);}
 .leaflet-container{font:inherit;}
 .obdobibar{background:linear-gradient(100deg,#2f6b3c,#3f7d4c);color:#fff;border-radius:12px;padding:12px 16px;margin:12px 0 4px;box-shadow:0 4px 14px rgba(47,107,60,.25);}
 .obdobibar .ob-now{font-size:1.18rem;font-weight:700;display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;}
@@ -164,6 +166,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <span><i style="background:#c9822f"></i>Polička</span><span><i style="background:#7b4fa3"></i>Litomyšl</span>
 <span><i style="background:#b5453a"></i>Jevíčko</span><span><i style="background:#d9d4c6"></i>neprovozované</span>
 <span><i style="background:#7a2f22;width:18px;height:3px;border:none;border-radius:0"></i>hranice okresu</span>
+<span style="color:#8a9382">· dvojklik/dvojťuk = mapa na celou obrazovku</span>
 </div></div>
 <div style="text-align:center;margin-top:16px">
 <button class="btn ghost small" id="importIM">⬆️ Importovat kontakty ze souboru</button>
@@ -687,10 +690,23 @@ function obecStyle(f){
   if(!p.provozovano) return {color:"#b8b2a2",weight:1,fillColor:"#d9d4c6",fillOpacity:.4};
   return {color:"#33506a",weight:1.2,fillColor:PRACBARVA[p.pracoviste]||"#2f6b3c",fillOpacity:.55};
 }
+var _mapFull=false;
+function toggleMapFull(){
+  var el=document.getElementById("map"); _mapFull=!_mapFull;
+  el.classList.toggle("mapfull",_mapFull);
+  var cb=document.getElementById("mapClose");
+  if(!cb){cb=document.createElement("button");cb.id="mapClose";cb.textContent="✕ zavřít mapu";cb.addEventListener("click",toggleMapFull);document.body.appendChild(cb);}
+  cb.style.display=_mapFull?"block":"none";
+  document.body.style.overflow=_mapFull?"hidden":"";
+  setTimeout(function(){if(_map)_map.invalidateSize();},60);
+}
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&_mapFull)toggleMapFull();});
 function initMap(){
   if(_mapLoaded) return; _mapLoaded=true;
   if(typeof L==="undefined"){document.getElementById("map").innerHTML="<p style='padding:12px'>Mapová knihovna se nenačetla (zkontroluj připojení).</p>";return;}
   _map=L.map("map").setView([49.75,16.45],10);
+  _map.doubleClickZoom.disable();           // dvojklik = celá obrazovka místo zoomu
+  _map.on("dblclick",toggleMapFull);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(_map);
   fetch("hranice.json").then(function(r){return r.json();}).then(function(gj){
     _mapLayer=L.geoJSON(gj,{style:obecStyle,onEachFeature:function(f,layer){
@@ -831,7 +847,7 @@ function runImport(K, SV, log){
 }
 document.getElementById("importIM").addEventListener("click",importIM);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-04 · v20 (přehled plánovaných návštěv + export do kalendáře; hláška u svazků)";
+var VERZE="2026-08-04 · v21 (dvojklik na mapu = celá obrazovka)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
