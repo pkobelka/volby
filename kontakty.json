@@ -12,7 +12,25 @@
   "mistostarosta": "Ing. Miloš Mička; Mgr. Václav Dokoupil",
   "mistostarosta_tel": "603506901",
   "mistostarosta_email": "mmicka@mtrebova.cz",
-  "zdroj": "interní seznam IM kontakty"
+  "zdroj": "interní seznam IM kontakty",
+  "rada": [
+   "Ing. Pavel Charvát — starosta",
+   "Mgr. Václav Dokoupil — uvolněný místostarosta",
+   "Ing. Miloš Mička — neuvolněný místostarosta",
+   "Mgr. Bc. Lenka Bártová — členka rady města",
+   "Ing. Daniela Maloverová — členka rady města",
+   "Jiří Šeda — člen rady města",
+   "Ing. Zbyněk Šmucer — člen rady města"
+  ],
+  "terminy": [
+   "09.02.2026",
+   "30.03.2026",
+   "11.05.2026",
+   "22.06.2026",
+   "07.09.2026",
+   "02.11.2026",
+   "14.12.2026"
+  ]
  },
  "572632": {
   "kod": "572632",
@@ -263,7 +281,14 @@
   "adresa": "Palackého nám.1, 569 43 Jevíčko",
   "ucetni": "p. Bartuňková/VO",
   "ucetni_email": "bartunkova@jevicko.cz",
-  "zdroj": "interní seznam IM kontakty"
+  "zdroj": "interní seznam IM kontakty",
+  "rada": [
+   "Dušan Pávek, dipl. um. — starosta města",
+   "Mgr. Miroslav Šafář — místostarosta města",
+   "Mgr. Jana Janečková — členka rady města",
+   "Mgr. Miloslav Parolek — člen rady města",
+   "Mgr. Petr Jedlinský — člen rady města"
+  ]
  },
  "578959": {
   "kod": "578959",
