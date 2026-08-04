@@ -12,7 +12,33 @@
   "adresa": "Nádražní 1430/6, 571 01 Mor.Třebová",
   "ucetni": "Radka Kaštánková",
   "ucetni_email": "radkakastankova@seznam.cz",
-  "zdroj": "interní seznam IM kontakty"
+  "zdroj": "interní seznam IM kontakty",
+  "obce": [
+   "578444",
+   "572632",
+   "578339",
+   "577987",
+   "572624",
+   "578282",
+   "578789",
+   "572683",
+   "578690",
+   "574333",
+   "578274",
+   "578142",
+   "578703",
+   "578711",
+   "578401",
+   "578908",
+   "578371",
+   "578266",
+   "577871",
+   "578762",
+   "505391",
+   "572250"
+  ],
+  "obce_zdroj": "dle zařazení v Excelu – ověřit",
+  "ucetni_tel": ""
  },
  {
   "id": "svz_MT_31",
@@ -27,7 +53,17 @@
   "adresa": "Palackého nám.1, 569 43 Jevíčko",
   "ucetni": "p. Pazdírková",
   "ucetni_email": "biskupice@biskupice.cz",
-  "zdroj": "interní seznam IM kontakty"
+  "zdroj": "interní seznam IM kontakty",
+  "obce": [
+   "578193",
+   "578959",
+   "572519",
+   "578151",
+   "572284",
+   "578991"
+  ],
+  "obce_zdroj": "dle zařazení v Excelu – ověřit",
+  "ucetni_tel": ""
  },
  {
   "id": "svz_MT_39",
@@ -42,7 +78,17 @@
   "adresa": "Městečko Trnávka 2, 569 41 Městečko Trnávka",
   "ucetni": "p. Kollerová/VF",
   "ucetni_email": "ou.kollerova@mtrnavka.cz",
-  "zdroj": "interní seznam IM kontakty"
+  "zdroj": "interní seznam IM kontakty",
+  "obce": [
+   "578380",
+   "578096",
+   "574309",
+   "578975",
+   "572292",
+   "513709"
+  ],
+  "obce_zdroj": "dle zařazení v Excelu – ověřit",
+  "ucetni_tel": ""
  },
  {
   "id": "svz_SY_7",
@@ -57,7 +103,19 @@
   "adresa": "Bělá nad Svitavou 215, 569 05 Bělá nad Svitavou",
   "ucetni": "p. Opršálová/VF",
   "ucetni_email": "obec@obec-bela.cz",
-  "zdroj": "interní seznam IM kontakty"
+  "zdroj": "interní seznam IM kontakty",
+  "obce": [
+   "572586",
+   "578304",
+   "578550",
+   "578657",
+   "578754",
+   "578860",
+   "577961",
+   "577863"
+  ],
+  "obce_zdroj": "dle zařazení v Excelu – ověřit",
+  "ucetni_tel": ""
  },
  {
   "id": "svz_PO_3",
@@ -72,7 +130,34 @@
   "adresa": "Palackého nám. 160, 572 01 Polička",
   "ucetni": "p. Jandíková/VF",
   "ucetni_email": "smsv@posta.policka.org",
-  "zdroj": "interní seznam IM kontakty"
+  "zdroj": "interní seznam IM kontakty",
+  "obce": [
+   "578576",
+   "578584",
+   "578207",
+   "578355",
+   "578738",
+   "578851",
+   "578258",
+   "578720",
+   "578291",
+   "578479",
+   "577995",
+   "577910",
+   "572373",
+   "572365",
+   "572357",
+   "578941",
+   "578428",
+   "572608",
+   "572616",
+   "578100",
+   "578185",
+   "578631",
+   "578886"
+  ],
+  "obce_zdroj": "dle zařazení v Excelu – ověřit",
+  "ucetni_tel": ""
  },
  {
   "id": "svz_PO_30",
@@ -87,7 +172,15 @@
   "adresa": "Bohuňovice 13, 570 01 Litomyšl",
   "ucetni": "p. Střáková",
   "ucetni_email": "",
-  "zdroj": "interní seznam IM kontakty"
+  "zdroj": "interní seznam IM kontakty",
+  "obce": [
+   "577821",
+   "578746",
+   "572233",
+   "580040"
+  ],
+  "obce_zdroj": "dle zařazení v Excelu – ověřit",
+  "ucetni_tel": ""
  },
  {
   "id": "svz_PO_35",
@@ -102,6 +195,16 @@
   "adresa": "Janov 216, 569 55 Janov",
   "ucetni": "p. Drábková/VF",
   "ucetni_email": "p.drabkova@janov-sy.cz",
-  "zdroj": "interní seznam IM kontakty"
+  "zdroj": "interní seznam IM kontakty",
+  "obce": [
+   "578134",
+   "578819",
+   "578398",
+   "578835",
+   "578894",
+   "577774"
+  ],
+  "obce_zdroj": "dle zařazení v Excelu – ověřit",
+  "ucetni_tel": ""
  }
 ]
