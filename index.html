@@ -647,7 +647,8 @@ function importIM(){
         if(empty(s[f]))return;
         if(empty(cur[f])){u[f]=s[f];touched=true;if(f!=="zdroj")nSvPoli++;}
       });
-      if((!cur.obce||!cur.obce.length)&&s.obce&&s.obce.length){u.obce=s.obce;u.obce_zdroj=s.obce_zdroj||"dle Excelu";touched=true;}
+      // Seznam členských obcí srovnej podle souboru (autoritativní) – ale NE u svazků, které jsi ručně upravil.
+      if(s.obce&&s.obce.length&&cur.obce_zdroj!=="ručně upraveno"&&JSON.stringify(cur.obce||[])!==JSON.stringify(s.obce)){u.obce=s.obce;u.obce_zdroj=s.obce_zdroj||"dle Excelu";touched=true;}
       if(Object.keys(u).length){
         if(touched||empty(cur.id)) nSv++;
         Object.keys(u).forEach(function(kk){updSvazky["volby_svazky/"+s.id+"/"+kk]=u[kk];});
