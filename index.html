@@ -805,9 +805,11 @@ function runImport(K, SV, log){
           if(empty(cur[f])){u[f]=k[f];nPoli++;hadContact=true;} else nPresk++;
         });
         if(k.zdroj && empty(cur.zdroj)) u.zdroj=k.zdroj;
-        ["rada","terminy","vf"].forEach(function(af){
+        ["rada","terminy"].forEach(function(af){
           if((!cur[af]||!cur[af].length)&&k[af]&&k[af].length){u[af]=k[af];nPoli++;hadContact=true;}
         });
+        // VF jsou referenční data – srovnej podle souboru (i kdyby už byla vyplněná)
+        if(k.vf&&k.vf.length&&JSON.stringify(cur.vf||[])!==JSON.stringify(k.vf)){u.vf=k.vf;nPoli++;hadContact=true;}
       }
       if(Object.keys(u).length){
         if(hadContact) nObce++;
@@ -855,7 +857,7 @@ function runImport(K, SV, log){
 }
 document.getElementById("importIM").addEventListener("click",importIM);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-04 · v23 (tlačítko ⛶ celá obrazovka mapy; VF vč. místních částí)";
+var VERZE="2026-08-04 · v24 (import srovnává VF podle souboru)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
