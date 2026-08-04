@@ -98,6 +98,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 .intro h3{color:var(--zelena-tmava);margin:8px 0 6px;font-size:1.15rem;}
 .intro p{color:#777;font-size:.9rem;max-width:460px;margin:0 auto 14px;}
 .intro .introbtns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+.cal{cursor:pointer;margin-left:6px;user-select:none;}
 .viewtabs{display:flex;gap:6px;margin:10px 0 2px;}
 .viewtab{border:1px solid var(--sedaramecek);background:#fff;border-radius:8px;padding:7px 14px;font-size:.86rem;cursor:pointer;color:#444;font-weight:600;}
 .viewtab.on{background:var(--zelena);color:#fff;border-color:var(--zelena);}
@@ -453,6 +454,31 @@ function det(label,sumv,body,open){return "<details class='sek2'"+(open?" open":
 function lines(v){return (v||"").split(/\n+/).map(function(x){return x.trim();}).filter(Boolean);}
 function listUL(arr){return (arr&&arr.length)?"<ul class='zast'>"+arr.map(function(x){return "<li>"+hl(x,_Q)+"</li>";}).join("")+"</ul>":"<span class='prazdne'>—</span>";}
 function editArea(lbl,id,val,rows){return "<div class='r'><b>"+lbl+"</b><textarea id='"+id+"' rows='"+(rows||4)+"'>"+esc(val||"")+"</textarea></div>";}
+/* ---- datum + export do kalendáře (.ics) ---- */
+function two(n){return (n<10?"0":"")+n;}
+function parseDMY(s){var m=String(s||"").match(/^\s*(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+  if(!m)return null;return {d:m[3]+"-"+two(+m[2])+"-"+two(+m[1]), t:m[4]?two(+m[4])+":"+m[5]:""};}
+function calLink(sum,loc,p,desc){return " <span class='cal' data-sum=\""+esc(sum)+"\" data-loc=\""+esc(loc||"")+"\" data-d='"+p.d+"' data-t='"+(p.t||"")+"' data-desc=\""+esc(desc||"")+"\" title='Přidat do kalendáře'>📅</span>";}
+function listCal(arr,sum,loc){
+  if(!arr||!arr.length)return "<span class='prazdne'>—</span>";
+  return "<ul class='zast'>"+arr.map(function(x){var p=parseDMY(x);return "<li>"+hl(x,_Q)+(p?calLink(sum,loc,p,x):"")+"</li>";}).join("")+"</ul>";}
+function icsEsc(s){return String(s||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\n/g,"\\n");}
+function icsFromEl(el){
+  var d=el.getAttribute("data-d"),t=el.getAttribute("data-t"),sum=el.getAttribute("data-sum"),loc=el.getAttribute("data-loc"),desc=el.getAttribute("data-desc");
+  var dc=d.replace(/-/g,"");var now=new Date();
+  var stamp=now.getUTCFullYear()+two(now.getUTCMonth()+1)+two(now.getUTCDate())+"T"+two(now.getUTCHours())+two(now.getUTCMinutes())+two(now.getUTCSeconds())+"Z";
+  var L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//volby-vhos//CS","CALSCALE:GREGORIAN","BEGIN:VEVENT","UID:"+dc+(t?t.replace(':',''):'')+"-"+Date.now()+"@volby-vhos","DTSTAMP:"+stamp];
+  if(t){var hh=+t.split(':')[0],mi=t.split(':')[1];L.push("DTSTART:"+dc+"T"+two(hh)+mi+"00");L.push("DTEND:"+dc+"T"+two((hh+1)%24)+mi+"00");}
+  else{L.push("DTSTART;VALUE=DATE:"+dc);}
+  L.push("SUMMARY:"+icsEsc(sum));
+  if(loc)L.push("LOCATION:"+icsEsc(loc));
+  if(desc)L.push("DESCRIPTION:"+icsEsc(desc));
+  L.push("END:VEVENT","END:VCALENDAR");
+  var blob=new Blob([L.join("\r\n")],{type:"text/calendar;charset=utf-8"});
+  var url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=(sum||"udalost").replace(/[^\wěščřžýáíéúůóťďňĚŠČŘŽÝÁÍÉÚŮÓ\-]+/g,"_")+".ics";
+  document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(url);},3000);
+}
 function openModal(o){_CUR=o;_EDIT=false;_Q=fold(document.getElementById("q").value.trim());renderModal();document.getElementById("modal").classList.add("show");}
 function renderModal(){
   var o=_CUR;var z22=o.zastupitelstvo||[], z26=o.zastupitelstvo_2026||[];
@@ -468,8 +494,10 @@ function renderModal(){
       "<div class='sekce'>Doplňující (volitelné)</div>"+
       editArea("Městská rada","e_rada",(o.rada||[]).join("\n"),5)+
       editArea("Termíny zastupitelstev","e_terminy",(o.terminy||[]).join("\n"),4)+
+      "<div class='hint'>Termín na řádek, formát <b>15.02.2026</b> — u data se pak nabídne 📅 export do kalendáře.</div>"+
       editArea("Poznámky","e_poznamky",o.poznamky,4)+
-      editArea("Návštěvy (1 na řádek)","e_navstevy",(o.navstevy||[]).join("\n"),4);
+      editArea("Návštěvy","e_navstevy",(o.navstevy||[]).join("\n"),4)+
+      "<div class='hint'>Návštěva na řádek: <b>15.02.2026 14:30 — text</b> (čas nepovinný). Nabídne 📅 export do kalendáře.</div>";
   }else{
     var pz=function(v){return v?hl(v,_Q):"<span class='prazdne'>—</span>";};
     body=head+"<div class='sekce'>Kontakty <span class='obd'>· období 2022–2026</span></div>"+
@@ -479,9 +507,9 @@ function renderModal(){
       det("Účetní",pz(o.ucetni),viewRow("Telefon",o.ucetni_tel,"tel")+viewRow("E-mail",o.ucetni_email,"email"),false)+
       det("Zastupitelstvo"+(z22.length?" ("+z22.length+")":""),"",zastList(z22,"— k doplnění —"),false);
     if(o.rada&&o.rada.length) body+=det("Městská rada ("+o.rada.length+")","",listUL(o.rada),false);
-    if(o.terminy&&o.terminy.length) body+=det("Termíny zastupitelstev","",listUL(o.terminy),false);
-    if(o.poznamky) body+=det("Poznámky","","<div class='r'><span class='pozn'>"+hl(o.poznamky,_Q)+"</span></div>",false);
-    if(o.navstevy&&o.navstevy.length) body+=det("Návštěvy ("+o.navstevy.length+")","",listUL(o.navstevy),false);
+    if(o.terminy&&o.terminy.length) body+=det("Termíny zastupitelstev","",listCal(o.terminy,"Zastupitelstvo "+o.nazev,o.nazev),false);
+    body+=det("Poznámky",o.poznamky?"✎":"",(o.poznamky?"<div class='r'><span class='pozn'>"+hl(o.poznamky,_Q)+"</span></div>":"<span class='prazdne'>— žádné (přidej přes ✏️ Upravit) —</span>"),false);
+    body+=det("Návštěvy"+((o.navstevy&&o.navstevy.length)?" ("+o.navstevy.length+")":""),"",((o.navstevy&&o.navstevy.length)?listCal(o.navstevy,"Návštěva "+o.nazev,o.nazev):"<span class='prazdne'>— žádné (přidej přes ✏️ Upravit) —</span>"),false);
   }
   // nástroje
   if(_EDIT){
@@ -497,6 +525,7 @@ function renderModal(){
   body+="<div class='msg' id='mmsg'></div>"+
     "<div class='zdroj'>zastupitelstvo 2022–2026: volby.cz KV2022"+(o.zdroj?" | kontakt: "+esc(o.zdroj):"")+"</div>";
   document.getElementById("mbody").innerHTML=body;
+  Array.prototype.forEach.call(document.querySelectorAll("#mbody .cal"),function(el){el.addEventListener("click",function(e){e.stopPropagation();icsFromEl(el);});});
   if(!_EDIT&&_Q){var mk=document.querySelector("#mbody mark");if(mk){try{mk.scrollIntoView({block:"center"});}catch(e){}}}
   if(_EDIT){
     document.getElementById("saveBtn").addEventListener("click",saveEdit);
@@ -681,7 +710,7 @@ function importIM(){
   }).catch(function(e){log.textContent="⚠️ Chyba při importu: "+(e&&e.message?e.message:e);btn.disabled=false;});
 }
 document.getElementById("importIM").addEventListener("click",importIM);
-var VERZE="2026-08-04 · v16.1 (hledání vždy ve všem – i ze záložky Svazky)";
+var VERZE="2026-08-04 · v17 (poznámky/návštěvy vždy + export termínů a návštěv do kalendáře)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
