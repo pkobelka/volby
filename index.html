@@ -99,6 +99,8 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 .intro p{color:#777;font-size:.9rem;max-width:460px;margin:0 auto 14px;}
 .intro .introbtns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
 .cal{cursor:pointer;margin-left:6px;user-select:none;}
+.secedit{cursor:pointer;user-select:none;margin-left:auto;}
+.navdel{cursor:pointer;color:#a8482f;margin-left:6px;}
 .viewtabs{display:flex;gap:6px;margin:10px 0 2px;}
 .viewtab{border:1px solid var(--sedaramecek);background:#fff;border-radius:8px;padding:7px 14px;font-size:.86rem;cursor:pointer;color:#444;font-weight:600;}
 .viewtab.on{background:var(--zelena);color:#fff;border-color:var(--zelena);}
@@ -189,7 +191,7 @@ function hl(text,q){
   return esc(text.slice(0,s))+"<mark>"+esc(text.slice(s,e+1))+"</mark>"+esc(text.slice(e+1));
 }
 
-var OBCE=[], SVAZKY=[], _USER=null, _CUR=null, _EDIT=false, _CURSV=null, _EDITSV=false, _Q="", _VIEW="list", _showAll=false;
+var OBCE=[], SVAZKY=[], _USER=null, _CUR=null, _EDIT=false, _CURSV=null, _EDITSV=false, _Q="", _VIEW="list", _showAll=false, _navTmp=[];
 var PRAC=["Moravská Třebová","Svitavy","Polička","Litomyšl","Jevíčko"];
 var fProv="Vše", fPrac="Vše";
 
@@ -509,8 +511,8 @@ function renderModal(){
       det("Zastupitelstvo"+(z22.length?" ("+z22.length+")":""),"",zastList(z22,"— k doplnění —"),false);
     if(o.rada&&o.rada.length) body+=det("Městská rada ("+o.rada.length+")","",listUL(o.rada),false);
     if(o.terminy&&o.terminy.length) body+=det("Termíny zastupitelstev","",listCal(o.terminy,"Zastupitelstvo "+o.nazev,o.nazev),false);
-    body+=det("Poznámky",o.poznamky?"✎":"",(o.poznamky?"<div class='r'><span class='pozn'>"+hl(o.poznamky,_Q)+"</span></div>":"<span class='prazdne'>— žádné (přidej přes ✏️ Upravit) —</span>"),false);
-    body+=det("Návštěvy"+((o.navstevy&&o.navstevy.length)?" ("+o.navstevy.length+")":""),"",((o.navstevy&&o.navstevy.length)?listCal(o.navstevy,"Návštěva "+o.nazev,o.nazev):"<span class='prazdne'>— žádné (přidej přes ✏️ Upravit) —</span>"),false);
+    body+=det("Poznámky",secPencil("poznamky"),(o.poznamky?"<div class='r'><span class='pozn'>"+hl(o.poznamky,_Q)+"</span></div>":"<span class='prazdne'>— žádné (ťukni ✏️) —</span>"),false);
+    body+=det("Návštěvy"+((o.navstevy&&o.navstevy.length)?" ("+o.navstevy.length+")":""),secPencil("navstevy"),((o.navstevy&&o.navstevy.length)?listCal(o.navstevy,"Návštěva "+o.nazev,o.nazev):"<span class='prazdne'>— žádné (ťukni ✏️) —</span>"),false);
   }
   // nástroje
   if(_EDIT){
@@ -527,6 +529,7 @@ function renderModal(){
     "<div class='zdroj'>zastupitelstvo 2022–2026: volby.cz KV2022"+(o.zdroj?" | kontakt: "+esc(o.zdroj):"")+"</div>";
   document.getElementById("mbody").innerHTML=body;
   Array.prototype.forEach.call(document.querySelectorAll("#mbody .cal"),function(el){el.addEventListener("click",function(e){e.stopPropagation();icsFromEl(el);});});
+  Array.prototype.forEach.call(document.querySelectorAll("#mbody .secedit"),function(el){el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();var s=el.getAttribute("data-sec");if(s==="poznamky")openPoznEditor();else if(s==="navstevy")openNavEditor();});});
   if(!_EDIT&&_Q){var mk=document.querySelector("#mbody mark");if(mk){try{mk.scrollIntoView({block:"center"});}catch(e){}}}
   if(_EDIT){
     document.getElementById("saveBtn").addEventListener("click",saveEdit);
@@ -552,6 +555,52 @@ function saveEdit(){
   FDB.ref("volby_obce/"+o.kod).update(upd).then(function(){
     Object.assign(o,upd);_EDIT=false;renderModal();
   }).catch(function(e){document.getElementById("mmsg").textContent="⚠️ "+(e&&e.message?e.message:e);});
+}
+/* ---- editory jednotlivých sekcí (poznámky / návštěvy) ---- */
+function secPencil(sec){return "<span class='secedit' data-sec='"+sec+"' title='Upravit'>✏️</span>";}
+function openPoznEditor(){
+  var o=_CUR;
+  document.getElementById("mbody").innerHTML="<h2>📝 Poznámky — "+esc(o.nazev)+"</h2>"+
+    "<div class='r' style='display:block'><textarea id='pz_text' rows='8' style='width:100%'>"+esc(o.poznamky||"")+"</textarea></div>"+
+    "<div class='mtools'><button class='btn' id='pz_save'>💾 Uložit</button><button class='btn ghost' id='pz_back'>← Zpět</button></div>"+
+    "<div class='msg' id='mmsg'></div>";
+  document.getElementById("pz_back").addEventListener("click",function(){renderModal();});
+  document.getElementById("pz_save").addEventListener("click",function(){
+    var val=(document.getElementById("pz_text").value||"").trim();
+    document.getElementById("mmsg").textContent="Ukládám…";
+    FDB.ref("volby_obce/"+o.kod).update({poznamky:val,upravil:_USER.email,upravil_ts:Date.now()}).then(function(){o.poznamky=val;renderModal();}).catch(function(e){document.getElementById("mmsg").textContent="⚠️ "+(e&&e.message?e.message:e);});
+  });
+}
+function fmtVisit(d,t,text){var p=d.split("-");return p[2]+"."+p[1]+"."+p[0]+(t?" "+t:"")+(text?" — "+text:"");}
+function renderNavList(){
+  var el=document.getElementById("navlist");
+  if(!_navTmp.length){el.innerHTML="<span class='prazdne'>zatím žádné návštěvy</span>";return;}
+  el.innerHTML="<ul class='zast'>"+_navTmp.map(function(x,i){return "<li>"+esc(x)+" <span class='navdel' data-i='"+i+"' title='Smazat'>✕</span></li>";}).join("")+"</ul>";
+  Array.prototype.forEach.call(el.querySelectorAll(".navdel"),function(d){d.addEventListener("click",function(){_navTmp.splice(+d.getAttribute("data-i"),1);renderNavList();});});
+}
+function openNavEditor(){
+  var o=_CUR;_navTmp=(o.navstevy||[]).slice();
+  document.getElementById("mbody").innerHTML="<h2>🚗 Návštěvy — "+esc(o.nazev)+"</h2>"+
+    "<div id='navlist'></div>"+
+    "<div class='sekce'>Přidat návštěvu</div>"+
+    "<div class='r'><b>Datum</b><input type='date' id='nv_d'></div>"+
+    "<div class='r'><b>Čas (nepovinné)</b><input type='time' id='nv_t'></div>"+
+    "<div class='r'><b>Text</b><input id='nv_text' placeholder='účel návštěvy…'></div>"+
+    "<button class='btn ghost small' id='nv_add'>➕ Přidat do seznamu</button>"+
+    "<div class='mtools'><button class='btn' id='nv_save'>💾 Uložit</button><button class='btn ghost' id='nv_back'>← Zpět</button></div>"+
+    "<div class='hint'>Po uložení bude u každé návštěvy 📅 pro přidání do kalendáře.</div>"+
+    "<div class='msg' id='mmsg'></div>";
+  renderNavList();
+  document.getElementById("nv_add").addEventListener("click",function(){
+    var d=document.getElementById("nv_d").value,t=document.getElementById("nv_t").value,tx=(document.getElementById("nv_text").value||"").trim();
+    if(!d){document.getElementById("mmsg").textContent="Vyber datum.";return;}
+    _navTmp.push(fmtVisit(d,t,tx));document.getElementById("nv_text").value="";document.getElementById("mmsg").textContent="";renderNavList();
+  });
+  document.getElementById("nv_back").addEventListener("click",function(){renderModal();});
+  document.getElementById("nv_save").addEventListener("click",function(){
+    document.getElementById("mmsg").textContent="Ukládám…";
+    FDB.ref("volby_obce/"+o.kod).update({navstevy:_navTmp,upravil:_USER.email,upravil_ts:Date.now()}).then(function(){o.navstevy=_navTmp.slice();renderModal();}).catch(function(e){document.getElementById("mmsg").textContent="⚠️ "+(e&&e.message?e.message:e);});
+  });
 }
 function toggleOvereno(){
   var o=_CUR;var nv=!o.overeno;
@@ -725,7 +774,7 @@ function runImport(K, SV, log){
 }
 document.getElementById("importIM").addEventListener("click",importIM);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-04 · v18 (data jen z Firebase; import z vybraného souboru)";
+var VERZE="2026-08-04 · v19 (✏️ přímá úprava poznámky/návštěvy, návštěva s datem+kalendářem)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
