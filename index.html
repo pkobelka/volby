@@ -151,6 +151,7 @@ var AUTH=firebase.auth(), FDB=firebase.database();
 var LOGIN_URL=location.origin+location.pathname;
 function leKey(email){return String(email||'').trim().toLowerCase().replace(/\./g,',');}
 function esc(s){return (s||"").replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function fold(s){return (s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");}
 
 var OBCE=[], SVAZKY=[], _USER=null, _CUR=null, _EDIT=false, _CURSV=null, _EDITSV=false;
 var PRAC=["Moravská Třebová","Svitavy","Polička","Litomyšl","Jevíčko"];
@@ -232,9 +233,14 @@ function loadSvazky(){
 }
 function renderSvazky(){
   var g=document.getElementById("svgrid");g.innerHTML="";
-  document.getElementById("svpocet").textContent=SVAZKY.length+" svazků vodovodů (DSO)";
-  if(!SVAZKY.length){g.innerHTML="<div class='stav' style='grid-column:1/-1'>Svazky vodovodů zatím nejsou ve Firebase. Přihlášený uživatel je doplní tlačítkem <b>„Doplnit kontakty z IM seznamu“</b> dole v patičce.</div>";return;}
-  SVAZKY.forEach(function(s){
+  var qEl=document.getElementById("q"), q=qEl?fold(qEl.value.trim()):"";
+  if(!SVAZKY.length){document.getElementById("svpocet").textContent="0 svazků vodovodů";g.innerHTML="<div class='stav' style='grid-column:1/-1'>Svazky vodovodů zatím nejsou ve Firebase. Přihlášený uživatel je doplní tlačítkem <b>„Doplnit kontakty z IM seznamu“</b> dole v patičce.</div>";return;}
+  var list=SVAZKY.filter(function(s){
+    if(!q)return true;
+    return fold(s.nazev).indexOf(q)>=0||fold(s.osoba).indexOf(q)>=0||fold(s.funkce).indexOf(q)>=0||fold(s.ucetni).indexOf(q)>=0||fold(s.sidlo_obec).indexOf(q)>=0||fold(s.email).indexOf(q)>=0;
+  });
+  document.getElementById("svpocet").textContent=list.length+" svazků vodovodů (DSO)"+(q?" (hledání ve všech)":"");
+  list.forEach(function(s){
     var d=document.createElement("div");d.className="obec";
     d.innerHTML="<h3>💧 "+esc(s.nazev)+"</h3><div class='badges'><span class='b prac'>svazek vodovodů</span>"+
       (s.ico?"<span class='b'>IČO "+esc(s.ico)+"</span>":"")+"</div>"+
@@ -310,16 +316,18 @@ function badgesHTML(o){var mimo=o.okres!=="Svitavy";
 function groupHdr(g,provoz){var h=document.createElement("div");h.className="grouphdr"+(provoz?"":" npg");
   var n=OBCE.filter(function(o){return o.provozovano===provoz;}).length;
   h.innerHTML=(provoz?"🔧 Provozované VHOS":"Neprovozované")+" <span class='cnt'>("+n+" obcí)</span>";g.appendChild(h);}
-function matchZast(o,q){return (o.zastupitelstvo||[]).some(function(z){return z.toLowerCase().indexOf(q)>=0;});}
+function matchZast(o,q){return (o.zastupitelstvo||[]).some(function(z){return fold(z).indexOf(q)>=0;});}
+function matchObec(o,q){return fold(o.nazev).indexOf(q)>=0||fold(o.starosta).indexOf(q)>=0||fold(o.mistostarosta).indexOf(q)>=0||fold(o.starosta_email).indexOf(q)>=0||fold(o.email).indexOf(q)>=0||matchZast(o,q);}
 function render(){
-  var q=document.getElementById("q").value.trim().toLowerCase();
+  var q=fold(document.getElementById("q").value.trim());
+  // Kdyz se hleda, jde hledani PRES VSECHNY obce a ignoruje filtry (pracoviste/provozovano).
   var list=OBCE.filter(function(o){
+    if(q)return matchObec(o,q);
     if(!provOK(o))return false;
     if(fPrac!=="Vše"&&o.pracoviste!==fPrac)return false;
-    if(q&&!(o.nazev.toLowerCase().indexOf(q)>=0||(o.starosta||"").toLowerCase().indexOf(q)>=0||matchZast(o,q)))return false;
     return true;
   });
-  document.getElementById("pocet").textContent=list.length+" obcí";
+  document.getElementById("pocet").textContent=list.length+" obcí"+(q?" (hledání ve všech)":"");
   var g=document.getElementById("grid");g.innerHTML="";var last=null;
   list.forEach(function(o){
     if(o.provozovano!==last){last=o.provozovano;groupHdr(g,o.provozovano);}
@@ -413,7 +421,7 @@ function toggleProverit(){
 document.getElementById("mclose").addEventListener("click",function(){document.getElementById("modal").classList.remove("show");});
 document.getElementById("modal").addEventListener("click",function(e){if(e.target.id==="modal")e.currentTarget.classList.remove("show");});
 document.addEventListener("keydown",function(e){if(e.key==="Escape")document.getElementById("modal").classList.remove("show");});
-document.getElementById("q").addEventListener("input",render);
+document.getElementById("q").addEventListener("input",function(){render();renderSvazky();});
 
 /* ---------- MAPA ---------- */
 var _map=null,_mapLayer=null,_mapLoaded=false,_layerByKod={},_pendingFocus=null,_focusedLayer=null;
@@ -547,7 +555,7 @@ function importIM(){
   }).catch(function(e){log.textContent="⚠️ Chyba při importu: "+(e&&e.message?e.message:e);btn.disabled=false;});
 }
 document.getElementById("importIM").addEventListener("click",importIM);
-var VERZE="2026-08-04 · v11 (Svitavy+Litomyšl neprovozované; tlačítko k prověření)";
+var VERZE="2026-08-04 · v12 (hledání ve všech obcích, bez diakritiky)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
