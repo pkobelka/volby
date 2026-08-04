@@ -398,13 +398,15 @@ function groupHdr(g,provoz){var h=document.createElement("div");h.className="gro
   h.innerHTML=(provoz?"🔧 Provozované VHOS":"Neprovozované")+" <span class='cnt'>("+n+" obcí)</span>";g.appendChild(h);}
 function matchZast(o,q){return (o.zastupitelstvo||[]).some(function(z){return fold(z).indexOf(q)>=0;});}
 function matchArr(a,q){return (a||[]).some(function(x){return fold(x).indexOf(q)>=0;});}
-function matchObec(o,q){return fold(o.nazev).indexOf(q)>=0||fold(o.starosta).indexOf(q)>=0||fold(o.mistostarosta).indexOf(q)>=0||fold(o.ucetni).indexOf(q)>=0||fold(o.starosta_email).indexOf(q)>=0||fold(o.email).indexOf(q)>=0||matchZast(o,q)||matchArr(o.rada,q);}
+function matchObec(o,q){return fold(o.nazev).indexOf(q)>=0||fold(o.starosta).indexOf(q)>=0||fold(o.mistostarosta).indexOf(q)>=0||fold(o.ucetni).indexOf(q)>=0||fold(o.starosta_email).indexOf(q)>=0||fold(o.email).indexOf(q)>=0||matchZast(o,q)||matchArr(o.rada,q)||matchArr(o.vf,q);}
 // řádek na kartě: čím obec odpovídá dotazu (kromě názvu, ten je v nadpisu)
 function hitObec(o,q){
   if(!q||fold(o.nazev).indexOf(q)>=0) return "";
   if(fold(o.starosta).indexOf(q)>=0) return "<div class='hit'>🔎 starosta: "+hl(o.starosta,q)+"</div>";
   if(fold(o.mistostarosta).indexOf(q)>=0) return "<div class='hit'>🔎 místostarosta: "+hl(o.mistostarosta,q)+"</div>";
   if(fold(o.ucetni).indexOf(q)>=0) return "<div class='hit'>🔎 účetní: "+hl(o.ucetni,q)+"</div>";
+  var vf=(o.vf||[]).filter(function(x){return fold(x).indexOf(q)>=0;});
+  if(vf.length) return "<div class='hit'>🔎 VF: "+vf.map(function(x){return hl(x,q);}).join(", ")+"</div>";
   var rad=(o.rada||[]).filter(function(x){return fold(x).indexOf(q)>=0;});
   if(rad.length) return "<div class='hit'>🔎 rada: "+rad.map(function(x){return hl(x,q);}).join(", ")+"</div>";
   var z=(o.zastupitelstvo||[]).filter(function(x){return fold(x).indexOf(q)>=0;});
@@ -549,7 +551,7 @@ function renderModal(){
       editRow("Starosta","e_starosta",o.starosta)+editRow("Starosta – telefon","e_starosta_tel",o.starosta_tel)+editRow("Starosta – e-mail","e_starosta_email",o.starosta_email)+
       editRow("Místostarosta","e_mistostarosta",o.mistostarosta)+editRow("Místostarosta – telefon","e_mistostarosta_tel",o.mistostarosta_tel)+editRow("Místostarosta – e-mail","e_mistostarosta_email",o.mistostarosta_email)+
       editRow("Účetní","e_ucetni",o.ucetni)+editRow("Účetní – telefon","e_ucetni_tel",o.ucetni_tel)+editRow("Účetní – e-mail","e_ucetni_email",o.ucetni_email)+
-      editRow("E-mail úřadu","e_email",o.email)+editRow("Telefon úřadu","e_tel",o.tel)+editRow("Web","e_web",o.web)+editRow("Adresa úřadu","e_adresa",o.adresa)+
+      editRow("E-mail úřadu","e_email",o.email)+editRow("Telefon úřadu","e_tel",o.tel)+editRow("Web","e_web",o.web)+editRow("Adresa úřadu","e_adresa",o.adresa)+editRow("VF (fakturace)","e_vf",(o.vf||[]).join(", "))+
       "<div class='r'><b>Zastupitelstvo"+(z22.length?" ("+z22.length+")":"")+"</b><span>"+zastList(z22,"— k doplnění —")+"</span></div>"+
       "<div class='sekce'>Doplňující (volitelné)</div>"+
       editArea("Městská rada","e_rada",(o.rada||[]).join("\n"),5)+
@@ -563,7 +565,7 @@ function renderModal(){
     body=head+"<div class='sekce'>Kontakty <span class='obd'>· období 2022–2026</span></div>"+
       det("Starosta",pz(o.starosta),viewRow("Telefon",o.starosta_tel,"tel")+viewRow("E-mail",o.starosta_email,"email"),true)+
       det("Místostarosta",pz(o.mistostarosta),viewRow("Telefon",o.mistostarosta_tel,"tel")+viewRow("E-mail",o.mistostarosta_email,"email"),false)+
-      det("Úřad",esc(o.email||o.tel||""),viewRow("E-mail",o.email,"email")+viewRow("Telefon",o.tel,"tel")+viewRow("Web",o.web,"web")+viewRow("Adresa",o.adresa),false)+
+      det("Úřad",esc(o.email||o.tel||""),viewRow("E-mail",o.email,"email")+viewRow("Telefon",o.tel,"tel")+viewRow("Web",o.web,"web")+viewRow("Adresa",o.adresa)+viewRow("VF (fakturace)",(o.vf||[]).join(", ")),false)+
       det("Účetní",pz(o.ucetni),viewRow("Telefon",o.ucetni_tel,"tel")+viewRow("E-mail",o.ucetni_email,"email"),false)+
       det("Zastupitelstvo"+(z22.length?" ("+z22.length+")":""),"",zastList(z22,"— k doplnění —"),false);
     if(o.rada&&o.rada.length) body+=det("Městská rada ("+o.rada.length+")","",listUL(o.rada),false);
@@ -605,6 +607,7 @@ function saveEdit(){
     mistostarosta_tel:g("e_mistostarosta_tel"),mistostarosta_email:g("e_mistostarosta_email"),
     ucetni:g("e_ucetni"),ucetni_tel:g("e_ucetni_tel"),ucetni_email:g("e_ucetni_email"),
     email:g("e_email"),tel:g("e_tel"),web:g("e_web"),adresa:g("e_adresa"),
+    vf:(g("e_vf")||"").split(/[\s,;]+/).filter(Boolean),
     rada:lines(document.getElementById("e_rada").value),terminy:lines(document.getElementById("e_terminy").value),
     poznamky:(document.getElementById("e_poznamky").value||"").trim(),navstevy:lines(document.getElementById("e_navstevy").value),
     upravil:_USER.email,upravil_ts:Date.now()};
@@ -797,7 +800,7 @@ function runImport(K, SV, log){
           if(empty(cur[f])){u[f]=k[f];nPoli++;hadContact=true;} else nPresk++;
         });
         if(k.zdroj && empty(cur.zdroj)) u.zdroj=k.zdroj;
-        ["rada","terminy"].forEach(function(af){
+        ["rada","terminy","vf"].forEach(function(af){
           if((!cur[af]||!cur[af].length)&&k[af]&&k[af].length){u[af]=k[af];nPoli++;hadContact=true;}
         });
       }
@@ -847,7 +850,7 @@ function runImport(K, SV, log){
 }
 document.getElementById("importIM").addEventListener("click",importIM);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-04 · v21 (dvojklik na mapu = celá obrazovka)";
+var VERZE="2026-08-04 · v22 (VF fakturační kódy u obcí, hledání dle VF)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
