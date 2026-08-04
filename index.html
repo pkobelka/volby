@@ -159,11 +159,12 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <span><i style="background:#7a2f22;width:18px;height:3px;border:none;border-radius:0"></i>hranice okresu</span>
 </div></div>
 <div style="text-align:center;margin-top:16px">
-<button class="btn ghost small" id="importIM">⬇️ Doplnit kontakty z IM seznamu</button>
+<button class="btn ghost small" id="importIM">⬆️ Importovat kontakty ze souboru</button>
+<input type="file" id="importFile" accept=".json,application/json" multiple style="display:none" />
 <div class="msg" id="importMsg" style="text-align:center"></div>
-<div class="hint" style="text-align:center">Doplní jen prázdná pole (starosta, telefon, e-mail, adresa…) u obcí a svazků vodovodů. Ručně upravené hodnoty zůstanou beze změny.</div>
+<div class="hint" style="text-align:center">Vyber datové soubory (kontakty.json / svazky.json). Doplní jen prázdná pole; ručně upravené hodnoty zůstanou beze změny. Data nejsou veřejná – jen ve Firebase za přihlášením.</div>
 </div>
-<footer>Data: volby.cz KV2022 + weby obci + IM kontakty · úpravy ve Firebase (moje-budky) · <b id="verze"></b></footer>
+<footer>Data: volby.cz KV2022 + weby obcí · úpravy ve Firebase (moje-budky) · <b id="verze"></b></footer>
 </div>
 
 <div class="modal" id="modal"><div class="modalbox"><button class="close" id="mclose">&times;</button><div id="mbody"></div></div></div>
@@ -631,16 +632,29 @@ document.getElementById("tabMap").addEventListener("click",function(){showView("
 /* ---------- IMPORT KONTAKTŮ Z IM SEZNAMU ---------- */
 function importIM(){
   if(!_USER)return;
-  var btn=document.getElementById("importIM"), log=document.getElementById("importMsg");
-  btn.disabled=true; log.textContent="Načítám data…";
+  document.getElementById("importFile").click(); // vyber datové soubory (kontakty.json / svazky.json)
+}
+function readJsonFile(file){return new Promise(function(res,rej){var fr=new FileReader();fr.onload=function(){try{res(JSON.parse(fr.result));}catch(e){rej(new Error(file.name+": neplatný JSON"));}};fr.onerror=function(){rej(fr.error);};fr.readAsText(file);});}
+function onImportFiles(ev){
+  var files=Array.prototype.slice.call(ev.target.files||[]); ev.target.value="";
+  var log=document.getElementById("importMsg");
+  if(!files.length)return;
+  log.textContent="Načítám soubory…";
+  Promise.all(files.map(readJsonFile)).then(function(parsed){
+    var K=null, SV=null;
+    parsed.forEach(function(pp){ if(Array.isArray(pp)) SV=pp; else if(pp&&typeof pp==="object") K=pp; });
+    if(!K&&!SV){log.textContent="⚠️ V souborech nejsou kontakty ani svazky.";return;}
+    runImport(K||{}, SV||[], log);
+  }).catch(function(e){log.textContent="⚠️ "+(e&&e.message?e.message:e);});
+}
+function runImport(K, SV, log){
+  var btn=document.getElementById("importIM"); btn.disabled=true; log.textContent="Načítám stav Firebase…";
   Promise.all([
-    fetch("kontakty.json").then(function(r){return r.json();}),
-    fetch("svazky.json").then(function(r){return r.json();}),
     fetch("hranice.json").then(function(r){return r.json();}),
     FDB.ref("volby_obce").get().then(function(s){return s.val()||{};}),
     FDB.ref("volby_svazky").get().then(function(s){return s.val()||{};})
   ]).then(function(res){
-    var K=res[0], SV=res[1], HR=res[2], CUR=res[3], CURSV=res[4];
+    var HR=res[0], CUR=res[1], CURSV=res[2];
     var base={}; HR.features.forEach(function(f){base[f.properties.kod]=f.properties;});
     function empty(v){return v===undefined||v===null||v==="";}
     // Obce a svazky zapisujeme ODDĚLENĚ – zápis svazků (nový uzel) nesmí shodit
@@ -710,7 +724,8 @@ function importIM(){
   }).catch(function(e){log.textContent="⚠️ Chyba při importu: "+(e&&e.message?e.message:e);btn.disabled=false;});
 }
 document.getElementById("importIM").addEventListener("click",importIM);
-var VERZE="2026-08-04 · v17 (poznámky/návštěvy vždy + export termínů a návštěv do kalendáře)";
+document.getElementById("importFile").addEventListener("change",onImportFiles);
+var VERZE="2026-08-04 · v18 (data jen z Firebase; import z vybraného souboru)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
