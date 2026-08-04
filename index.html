@@ -538,7 +538,11 @@ function toggleProverit(){
 document.getElementById("mclose").addEventListener("click",function(){document.getElementById("modal").classList.remove("show");});
 document.getElementById("modal").addEventListener("click",function(e){if(e.target.id==="modal")e.currentTarget.classList.remove("show");});
 document.addEventListener("keydown",function(e){if(e.key==="Escape")document.getElementById("modal").classList.remove("show");});
-document.getElementById("q").addEventListener("input",function(){render();renderSvazky();});
+document.getElementById("q").addEventListener("input",function(){
+  var qv=document.getElementById("q").value.trim();
+  if(qv && _VIEW!=="list"){showView("list");initProv();}  // při hledání vždy do seznamu a hledej ve všem
+  render();renderSvazky();
+});
 
 /* ---------- MAPA ---------- */
 var _map=null,_mapLayer=null,_mapLoaded=false,_layerByKod={},_pendingFocus=null,_focusedLayer=null;
@@ -677,7 +681,7 @@ function importIM(){
   }).catch(function(e){log.textContent="⚠️ Chyba při importu: "+(e&&e.message?e.message:e);btn.disabled=false;});
 }
 document.getElementById("importIM").addEventListener("click",importIM);
-var VERZE="2026-08-04 · v16 (rada/termíny/poznámky/návštěvy + mobilní úvod)";
+var VERZE="2026-08-04 · v16.1 (hledání vždy ve všem – i ze záložky Svazky)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
