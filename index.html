@@ -473,7 +473,9 @@ function importIM(){
     var K=res[0], SV=res[1], HR=res[2], CUR=res[3], CURSV=res[4];
     var base={}; HR.features.forEach(function(f){base[f.properties.kod]=f.properties;});
     function empty(v){return v===undefined||v===null||v==="";}
-    var updates={}, nObce=0, nPoli=0, nPresk=0;
+    // Obce a svazky zapisujeme ODDĚLENĚ – zápis svazků (nový uzel) nesmí shodit
+    // import obcí, pokud pro 'volby_svazky' ještě nejsou pravidla ve Firebase.
+    var updObce={}, updSvazky={}, nObce=0, nPoli=0, nPresk=0;
     var CF=["starosta","starosta_tel","starosta_email","mistostarosta","email","tel","adresa"];
     // OBCE – zajisti základní identitu u všech 120, doplň prázdná kontaktní pole
     Object.keys(base).forEach(function(kod){
@@ -491,7 +493,7 @@ function importIM(){
       }
       if(Object.keys(u).length){
         if(hadContact) nObce++;
-        Object.keys(u).forEach(function(kk){updates["volby_obce/"+kod+"/"+kk]=u[kk];});
+        Object.keys(u).forEach(function(kk){updObce["volby_obce/"+kod+"/"+kk]=u[kk];});
       }
     });
     // SVAZKY VODOVODŮ – vytvoř / doplň prázdná pole
@@ -506,20 +508,33 @@ function importIM(){
       });
       if(Object.keys(u).length){
         if(touched||empty(cur.id)) nSv++;
-        Object.keys(u).forEach(function(kk){updates["volby_svazky/"+s.id+"/"+kk]=u[kk];});
+        Object.keys(u).forEach(function(kk){updSvazky["volby_svazky/"+s.id+"/"+kk]=u[kk];});
       }
     });
-    if(!Object.keys(updates).length){log.textContent="Vše už je vyplněné, nic k doplnění.";btn.disabled=false;return;}
+    if(!Object.keys(updObce).length && !Object.keys(updSvazky).length){log.textContent="Vše už je vyplněné, nic k doplnění.";btn.disabled=false;return;}
     if(!window.confirm("Doplnit "+nPoli+" prázdných polí u "+nObce+" obcí a "+nSv+" svazků vodovodů?\nExistující (ručně upravené) hodnoty zůstanou beze změny.")){log.textContent="Zrušeno.";btn.disabled=false;return;}
     log.textContent="Zapisuji do Firebase…";
-    FDB.ref().update(updates).then(function(){
-      log.innerHTML="✅ Hotovo. Obce: doplněno <b>"+nPoli+"</b> polí u <b>"+nObce+"</b> obcí (přeskočeno "+nPresk+" už vyplněných). Svazky vodovodů: <b>"+nSv+"</b> (+"+nSvPoli+" polí).";
+    function writePart(u){
+      if(!Object.keys(u).length) return Promise.resolve({skip:true});
+      return FDB.ref().update(u).then(function(){return {ok:true};},function(e){return {err:(e&&e.message?e.message:String(e))};});
+    }
+    writePart(updObce).then(function(ro){
+      return writePart(updSvazky).then(function(rs){return {ro:ro,rs:rs};});
+    }).then(function(r){
+      var parts=[];
+      if(r.ro.skip) parts.push("obce: nic k doplnění");
+      else if(r.ro.ok) parts.push("✅ obce: doplněno <b>"+nPoli+"</b> polí u <b>"+nObce+"</b> obcí (přeskočeno "+nPresk+")");
+      else parts.push("⚠️ obce selhaly: "+esc(r.ro.err));
+      if(r.rs.skip) parts.push("svazky: nic k doplnění");
+      else if(r.rs.ok) parts.push("✅ svazky vodovodů: <b>"+nSv+"</b>");
+      else parts.push("⚠️ svazky selhaly ("+esc(r.rs.err)+") – ve Firebase je potřeba přidat pravidlo pro uzel <b>volby_svazky</b> (stejné jako volby_obce)");
+      log.innerHTML=parts.join(" · ");
       btn.disabled=false;
-    }).catch(function(e){log.textContent="⚠️ "+(e&&e.message?e.message:e);btn.disabled=false;});
+    });
   }).catch(function(e){log.textContent="⚠️ Chyba při importu: "+(e&&e.message?e.message:e);btn.disabled=false;});
 }
 document.getElementById("importIM").addEventListener("click",importIM);
-var VERZE="2026-08-04 · v9 (kontakty z IM seznamu + svazky vodovodů)";
+var VERZE="2026-08-04 · v10 (import: obce a svazky odděleně)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
