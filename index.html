@@ -102,6 +102,10 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 .secedit{cursor:pointer;user-select:none;margin-left:auto;}
 .navdel{cursor:pointer;color:#a8482f;margin-left:6px;}
 .navexport{cursor:pointer;color:var(--zelena);text-decoration:underline;font-weight:600;}
+.vflist{display:flex;flex-wrap:wrap;gap:6px;}
+.vfitem{background:#eef3ec;border-radius:6px;padding:2px 7px;font-size:.85rem;}
+.vfitem.pre{background:#f0ece4;color:#8a8272;font-style:italic;cursor:help;}
+.vfitem.pre em{font-style:normal;font-size:.72rem;}
 .viewtabs{display:flex;gap:6px;margin:10px 0 2px;}
 .viewtab{border:1px solid var(--sedaramecek);background:#fff;border-radius:8px;padding:7px 14px;font-size:.86rem;cursor:pointer;color:#444;font-weight:600;}
 .viewtab.on{background:var(--zelena);color:#fff;border-color:var(--zelena);}
@@ -473,6 +477,13 @@ function editRow(lbl,id,val){return "<div class='r'><b>"+lbl+"</b><input id='"+i
 function det(label,sumv,body,open){return "<details class='sek2'"+(open?" open":"")+"><summary><span>"+esc(label)+"</span><span class='sumv'>"+(sumv||"")+"</span><span class='chev'>▾</span></summary><div class='sbody'>"+body+"</div></details>";}
 function lines(v){return (v||"").split(/\n+/).map(function(x){return x.trim();}).filter(Boolean);}
 function listUL(arr){return (arr&&arr.length)?"<ul class='zast'>"+arr.map(function(x){return "<li>"+hl(x,_Q)+"</li>";}).join("")+"</ul>":"<span class='prazdne'>—</span>";}
+function vfList(arr){
+  if(!arr||!arr.length) return "<span class='prazdne'>—</span>";
+  return "<div class='vflist'>"+arr.map(function(x){
+    var pre=/předan/i.test(x); var txt=String(x).replace(/\s*[·—-]\s*(voda\s*)?předaná\.?/i,"").trim();
+    return "<span class='vfitem"+(pre?" pre":"")+"'"+(pre?" title='neprovozujeme, ale voda předaná'":"")+">"+hl(txt,_Q)+(pre?" <em>(předaná)</em>":"")+"</span>";
+  }).join("")+"</div>";
+}
 function editArea(lbl,id,val,rows){return "<div class='r'><b>"+lbl+"</b><textarea id='"+id+"' rows='"+(rows||4)+"'>"+esc(val||"")+"</textarea></div>";}
 /* ---- datum + export do kalendáře (.ics) ---- */
 function two(n){return (n<10?"0":"")+n;}
@@ -566,7 +577,7 @@ function renderModal(){
     body=head+"<div class='sekce'>Kontakty <span class='obd'>· období 2022–2026</span></div>"+
       det("Starosta",pz(o.starosta),viewRow("Telefon",o.starosta_tel,"tel")+viewRow("E-mail",o.starosta_email,"email"),true)+
       det("Místostarosta",pz(o.mistostarosta),viewRow("Telefon",o.mistostarosta_tel,"tel")+viewRow("E-mail",o.mistostarosta_email,"email"),false)+
-      det("Úřad",esc(o.email||o.tel||""),viewRow("E-mail",o.email,"email")+viewRow("Telefon",o.tel,"tel")+viewRow("Web",o.web,"web")+viewRow("Adresa",o.adresa)+viewRow("VF (fakturace)",(o.vf||[]).join(", ")),false)+
+      det("Úřad",esc(o.email||o.tel||""),viewRow("E-mail",o.email,"email")+viewRow("Telefon",o.tel,"tel")+viewRow("Web",o.web,"web")+viewRow("Adresa",o.adresa)+"<div class='r'><b>VF (fakturace)</b><span>"+vfList(o.vf)+"</span></div>",false)+
       det("Účetní",pz(o.ucetni),viewRow("Telefon",o.ucetni_tel,"tel")+viewRow("E-mail",o.ucetni_email,"email"),false)+
       det("Zastupitelstvo"+(z22.length?" ("+z22.length+")":""),"",zastList(z22,"— k doplnění —"),false);
     if(o.rada&&o.rada.length) body+=det("Městská rada ("+o.rada.length+")","",listUL(o.rada),false);
@@ -857,7 +868,7 @@ function runImport(K, SV, log){
 }
 document.getElementById("importIM").addEventListener("click",importIM);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-04 · v24 (import srovnává VF podle souboru)";
+var VERZE="2026-08-04 · v25 (VF: předané vodovody s tooltipem „neprovozujeme, ale voda předaná“)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
