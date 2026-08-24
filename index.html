@@ -90,6 +90,26 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 .obeclink:hover{background:#2f6b3c;color:#fff;}
 .chip.svz{background:#eaf3fb;border-color:#cfe0f2;color:#2f5f86;font-weight:600;}
 .chip.svz.on{background:#2f6b3c;color:#fff;border-color:#2f6b3c;}
+.chip.zam{background:#f5eefb;border-color:#e2d3f0;color:#6b3f8a;font-weight:600;}
+.chip.zam.on{background:#2f6b3c;color:#fff;border-color:#2f6b3c;}
+.b.zam{background:#f0e6f8;color:#6b3f8a;}
+.zamtag{background:#f0e6f8;color:#6b3f8a;border-radius:5px;padding:0 5px;font-size:.72rem;margin-left:5px;white-space:nowrap;}
+.zambar{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 4px;}
+.zamsub{grid-column:1/-1;font-weight:700;margin:16px 2px 2px;font-size:1rem;border-bottom:2px solid #ece2f4;padding-bottom:5px;color:#6b3f8a;}
+.zamsub.mz{color:#8a6d1f;border-color:#f0e6c8;}
+.zamsub .cnt{font-weight:600;color:#a89bb4;font-size:.82rem;}
+.zamcard .role{font-size:.86rem;color:#444;margin-top:7px;}
+.zamcard.mz{background:#fdfcf6;border-style:dashed;}
+.zamcard.done{opacity:.72;}
+.zamact{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+.zamact .btn{padding:5px 10px;font-size:.78rem;}
+.zampre{background:#fbfaf6;border:1px solid #e9ede4;border-radius:8px;padding:8px 10px;font-size:.85rem;max-height:240px;overflow:auto;}
+.zampre ol{padding-left:22px;}
+.zampre li{margin:2px 0;}
+.zamwarn{background:#fdf3d6;border:1px solid #f0e6c8;color:#8a6d1f;border-radius:8px;padding:8px 10px;font-size:.82rem;margin-top:8px;}
+.zamnone{grid-column:1/-1;background:var(--karta);border:1px solid #eee;border-radius:14px;padding:22px 18px;text-align:center;}
+.zamnone h3{color:var(--zelena-tmava);margin-bottom:6px;font-size:1.1rem;}
+.zamnone p{color:#777;font-size:.88rem;max-width:520px;margin:0 auto 6px;}
 .sek2 .sbody textarea{width:100%;padding:6px 8px;border:1px solid var(--sedaramecek);border-radius:6px;font-size:.92rem;font-family:inherit;}
 .r textarea{flex:1;padding:6px 8px;border:1px solid var(--sedaramecek);border-radius:6px;font-size:.92rem;font-family:inherit;}
 .pozn{white-space:pre-wrap;word-break:break-word;}
@@ -166,6 +186,11 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <div class="pocet" id="navpocet"></div>
 <div class="grid" id="navgrid"></div>
 </div>
+<div id="zamwrap" class="hidden">
+<div class="pocet" id="zampocet"></div>
+<div class="grid" id="zamgrid"></div>
+<input type="file" id="zamFile" accept=".txt,.csv,.json,text/plain,text/csv,application/json" style="display:none" />
+</div>
 <div id="mapwrap" class="hidden"><div id="map"></div>
 <div class="maplegend">
 <span><i style="background:#3a7bd5"></i>Mor. Třebová</span><span><i style="background:#2f6b3c"></i>Svitavy</span>
@@ -176,6 +201,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 </div></div>
 <div style="text-align:center;margin-top:16px">
 <button class="btn ghost small" id="importIM">⬆️ Importovat kontakty ze souboru</button>
+<button class="btn ghost small" id="kontrolaVHOS">🔎 Kontrola VHOS</button>
 <input type="file" id="importFile" accept=".json,application/json" multiple style="display:none" />
 <div class="msg" id="importMsg" style="text-align:center"></div>
 <div class="hint" style="text-align:center">Vyber datové soubory (kontakty.json / svazky.json). Doplní jen prázdná pole; ručně upravené hodnoty zůstanou beze změny. Data nejsou veřejná – jen ve Firebase za přihlášením.</div>
@@ -241,7 +267,7 @@ if(AUTH.isSignInWithEmailLink(window.location.href)){
 AUTH.onAuthStateChanged(function(user){
   if(!user){_USER=null;showLogin();return;}
   FDB.ref("florian_login_email/"+leKey(user.email)).get().then(function(s){
-    if(s.exists()){_USER=user;document.getElementById("who").textContent=user.email;showApp();loadData();loadSvazky();}
+    if(s.exists()){_USER=user;document.getElementById("who").textContent=user.email;showApp();loadData();loadSvazky();loadZam();}
     else{showLogin("E-mail <b>"+esc(user.email)+"</b> zatím nemá přístup. Ozvi se Petru Kobelkovi, ať tě přidá (stejný seznam jako Florián).");AUTH.signOut();}
   }).catch(function(){showLogin("Nepodařilo se ověřit přístup, zkus to znovu.");});
 });
@@ -259,7 +285,7 @@ function loadData(){
       return (a.nazev||"").localeCompare(b.nazev||"","cs");
     });
     if(!OBCE.length){document.getElementById("stav").innerHTML="⚠️ Data zatím nejsou ve Firebase. Spusť GitHub akci <b>Seed Volby (volby_obce)</b>, pak se sem načtou.";}
-    initProv();initPrac();render();
+    recomputeZam();initProv();initPrac();render();
     updateStav();
   });
 }
@@ -272,7 +298,7 @@ function updateStav(){
   document.getElementById("stav").innerHTML=
     "Vsech "+OBCE.length+" obci ("+nProv+" provozuje VHOS + "+(OBCE.length-nProv)+" neprovozovanych). "+
     "Obdobi 2022–2026 z voleb 2022 ("+sZast+" zastupitelu). Overeno starostu: "+over+" obci. "+
-    (prov?"🔎 K prověření: "+prov+" obci. ":"")+"Klikni na obec pro detail a upravy.";
+    (prov?"🔎 K prověření: "+prov+" obci. ":"")+zamStav()+"Klikni na obec pro detail a upravy.";
 }
 
 /* ---------- SVAZKY VODOVODŮ ---------- */
@@ -280,7 +306,7 @@ function loadSvazky(){
   FDB.ref("volby_svazky").on("value",function(snap){
     _svErr="";var v=snap.val()||{};
     SVAZKY=Object.keys(v).map(function(k){return v[k];}).sort(function(a,b){return (a.nazev||"").localeCompare(b.nazev||"","cs");});
-    renderSvazky();initProv();
+    recomputeZam();renderSvazky();initProv();
   },function(err){
     _svErr=(err&&err.message)?err.message:String(err);SVAZKY=[];renderSvazky();initProv();
   });
@@ -383,6 +409,12 @@ function initProv(){
   // Plánované návštěvy
   var nv=document.createElement("div");nv.className="chip svz"+(_VIEW==="navstevy"?" on":"");nv.textContent="🚗 Návštěvy ("+allVisits(true).length+")";
   nv.addEventListener("click",function(){showView("navstevy");initProv();});box.appendChild(nv);
+  // Zaměstnanci VHOS v zastupitelstvech
+  var zm=document.createElement("div");zm.className="chip zam"+(_VIEW==="zam"?" on":"");
+  var nNew=ZAM.length?(ZAMHITS.neposouzene||0):0;
+  zm.textContent="🔎 Kontrola VHOS"+(ZAM.length?(nNew?" ("+nNew+")":" ✓"):"");
+  zm.title=ZAM.length?"shody zaměstnanců VHOS se zastupitelstvy – "+nNew+" k posouzení":"nahrát seznam zaměstnanců VHOS";
+  zm.addEventListener("click",function(){showView("zam");initProv();});box.appendChild(zm);
 }
 function initPrac(){
   var box=document.getElementById("pracChips");box.innerHTML="";
@@ -398,7 +430,7 @@ function badgesHTML(o){var mimo=o.okres!=="Svitavy";
   return (o.provozovano?"<span class='b prac'>"+esc(o.pracoviste)+"</span>":"<span class='b np'>neprovozováno</span>")+
     (mimo?"<span class='b mimo'>okres "+esc(o.okres)+"</span>":"")+
     (o.proverit?"<span class='b over'>🔎 k prověření</span>":"")+
-    (o.overeno?"<span class='b ok'>✔ ověřeno</span>":(o.jistota==="nízká"?"<span class='b over'>starosta ověřit</span>":""));}
+    (o.overeno?"<span class='b ok'>✔ ověřeno</span>":(o.jistota==="nízká"?"<span class='b over'>starosta ověřit</span>":""))+zamBadge(o);}
 function groupHdr(g,provoz){var h=document.createElement("div");h.className="grouphdr"+(provoz?"":" npg");
   var n=OBCE.filter(function(o){return o.provozovano===provoz;}).length;
   h.innerHTML=(provoz?"🔧 Provozované VHOS":"Neprovozované")+" <span class='cnt'>("+n+" obcí)</span>";g.appendChild(h);}
@@ -431,9 +463,11 @@ function render(){
       "<h3>Najdi obec, starostu nebo zastupitele</h3>"+
       "<p>Zadej hledání nahoře, nebo vyber pracoviště / filtr. Na mobilu se tak nemusí načítat celý seznam naráz.</p>"+
       "<div class='introbtns'><button class='btn' id='showAllBtn'>Zobrazit všechny obce ("+OBCE.length+")</button>"+
-      "<button class='btn ghost' id='introSvazky'>💧 Svazky vodovodů ("+SVAZKY.length+")</button></div></div>";
+      "<button class='btn ghost' id='introSvazky'>💧 Svazky vodovodů ("+SVAZKY.length+")</button>"+
+      "<button class='btn ghost' id='introZam'>🔎 Kontrola VHOS"+(ZAM.length&&ZAMHITS.neposouzene?" ("+ZAMHITS.neposouzene+")":"")+"</button></div></div>";
     document.getElementById("showAllBtn").addEventListener("click",function(){_showAll=true;render();});
     document.getElementById("introSvazky").addEventListener("click",function(){showView("svazky");initProv();});
+    document.getElementById("introZam").addEventListener("click",function(){showView("zam");initProv();});
     return;
   }
   // Kdyz se hleda, jde hledani PRES VSECHNY obce a ignoruje filtry (pracoviste/provozovano).
@@ -471,13 +505,13 @@ function link(val,kind){
   if(kind==="web"){var u=val.indexOf("http")===0?val:"https://"+val;return "<a href='"+esc(u)+"' target='_blank' rel='noopener'>"+esc(val)+"</a>";}
   return esc(val);
 }
-function zastList(val,e){return (val&&val.length)?"<ul class='zast'>"+val.map(function(x){return "<li>"+hl(x,_Q)+"</li>";}).join("")+"</ul>":"<span class='prazdne'>"+e+"</span>";}
+function zastList(val,e){return (val&&val.length)?"<ul class='zast'>"+val.map(function(x){return "<li>"+hl(x,_Q)+zamTag(x)+"</li>";}).join("")+"</ul>":"<span class='prazdne'>"+e+"</span>";}
 function viewRow(lbl,val,kind){return "<div class='r'><b>"+lbl+"</b><span>"+link(val,kind)+"</span></div>";}
 function viewRowHL(lbl,val){return "<div class='r'><b>"+lbl+"</b><span>"+(val?hl(val,_Q):"<span class='prazdne'>— k doplnění —</span>")+"</span></div>";}
 function editRow(lbl,id,val){return "<div class='r'><b>"+lbl+"</b><input id='"+id+"' value=\""+esc(val||"")+"\" /></div>";}
 function det(label,sumv,body,open){return "<details class='sek2'"+(open?" open":"")+"><summary><span>"+esc(label)+"</span><span class='sumv'>"+(sumv||"")+"</span><span class='chev'>▾</span></summary><div class='sbody'>"+body+"</div></details>";}
 function lines(v){return (v||"").split(/\n+/).map(function(x){return x.trim();}).filter(Boolean);}
-function listUL(arr){return (arr&&arr.length)?"<ul class='zast'>"+arr.map(function(x){return "<li>"+hl(x,_Q)+"</li>";}).join("")+"</ul>":"<span class='prazdne'>—</span>";}
+function listUL(arr){return (arr&&arr.length)?"<ul class='zast'>"+arr.map(function(x){return "<li>"+hl(x,_Q)+zamTag(x)+"</li>";}).join("")+"</ul>":"<span class='prazdne'>—</span>";}
 function vfList(arr){
   if(!arr||!arr.length) return "<span class='prazdne'>—</span>";
   return "<div class='vflist'>"+arr.map(function(x){
@@ -576,7 +610,7 @@ function renderModal(){
       editArea("Návštěvy","e_navstevy",(o.navstevy||[]).join("\n"),4)+
       "<div class='hint'>Návštěva na řádek: <b>15.02.2026 14:30 — text</b> (čas nepovinný). Nabídne 📅 export do kalendáře.</div>";
   }else{
-    var pz=function(v){return v?hl(v,_Q):"<span class='prazdne'>—</span>";};
+    var pz=function(v){return v?hl(v,_Q)+zamTag(v):"<span class='prazdne'>—</span>";};
     body=head+"<div class='sekce'>Kontakty <span class='obd'>· období 2022–2026</span></div>"+
       det("Starosta",pz(o.starosta),viewRow("Telefon",o.starosta_tel,"tel")+viewRow("E-mail",o.starosta_email,"email"),true)+
       det("Místostarosta",pz(o.mistostarosta),viewRow("Telefon",o.mistostarosta_tel,"tel")+viewRow("E-mail",o.mistostarosta_email,"email"),false)+
@@ -744,18 +778,20 @@ function initMap(){
     if(_pendingFocus){doFocus(_pendingFocus);_pendingFocus=null;}
   }).catch(function(e){document.getElementById("map").innerHTML="<p style='padding:12px'>Hranice obcí se nepodařilo načíst: "+esc(e.message||String(e))+"</p>";});
 }
-function showView(view){ // 'list' | 'map' | 'svazky' | 'navstevy'
+function showView(view){ // 'list' | 'map' | 'svazky' | 'navstevy' | 'zam'
   _VIEW=view;
-  var isList=view==="list", isMap=view==="map", isSv=view==="svazky", isNav=view==="navstevy";
+  var isList=view==="list", isMap=view==="map", isSv=view==="svazky", isNav=view==="navstevy", isZam=view==="zam";
   document.getElementById("pocet").classList.toggle("hidden",!isList);
   document.getElementById("grid").classList.toggle("hidden",!isList);
   document.getElementById("mapwrap").classList.toggle("hidden",!isMap);
   document.getElementById("svazkywrap").classList.toggle("hidden",!isSv);
   document.getElementById("navwrap").classList.toggle("hidden",!isNav);
+  document.getElementById("zamwrap").classList.toggle("hidden",!isZam);
   document.getElementById("tabList").classList.toggle("on",isList);
   document.getElementById("tabMap").classList.toggle("on",isMap);
   if(isSv)renderSvazky();
   if(isNav)renderNavstevyView();
+  if(isZam)renderZamView();
   if(isMap){initMap(); setTimeout(function(){if(_map)_map.invalidateSize();},120);}
 }
 function doFocus(kod){
@@ -772,6 +808,347 @@ function focusObec(kod){
 }
 document.getElementById("tabList").addEventListener("click",function(){showView("list");initProv();});
 document.getElementById("tabMap").addEventListener("click",function(){showView("map");initProv();});
+
+/* ---------- ZAMĚSTNANCI VHOS (porovnání se zastupitelstvy / kandidátkami) ---------- */
+/* Seznam se ukládá do Firebase (uzel volby_zamestnanci) – nikdy do repozitáře.
+   Datum narození ani jiná citlivá pole se z importu zahazují (viz parseZam). */
+var ZAM=[], ZAMKEY={}, ZAMSUR={}, ZAMHITS={jista:[],mozna:[]}, ZAMBYKOD={}, _zamErr="", _zamPre=null;
+var TITUL=/^(ing|mgr|bc|bca|mga|ma|msc|mba|mudr|mvdr|judr|rndr|phdr|paeddr|pharmdr|thdr|thlic|doc|prof|dis|ph|d|csc|drsc|lic|akad|arch|et|dr)$/;
+var DATUMRE=/^\d{1,4}[.\/-]\d{1,2}([.\/-]\d{2,4})?\.?$/;         // 1.2.1980, 1980-02-01, 02/1980
+var RCRE=/^\d{6}\s*\/?\s*\d{3,4}$/;                               // rodné číslo
+
+// jméno -> pole tokenů bez titulů, bez diakritiky
+function nameTokens(s){
+  return fold(String(s||"")).replace(/[.,;:()\/\\]/g," ").split(/\s+/)
+    .filter(function(t){return t&&t.length>1&&!TITUL.test(t)&&!/\d/.test(t);});
+}
+function nameKey(s){return nameTokens(s).slice().sort().join(" ");}
+// dvojice tokenů (řeší prohozené pořadí Jméno/Příjmení i prostřední jména)
+function nameKeys(s){
+  var t=nameTokens(s),out=[];
+  if(t.length<2)return out;
+  for(var i=0;i<t.length;i++)for(var j=i+1;j<t.length;j++)out.push([t[i],t[j]].sort().join(" "));
+  return out;
+}
+function surnameTok(s){var t=nameTokens(s);return t.length?t[t.length-1]:"";}
+function zamIndex(){
+  ZAMKEY={};ZAMSUR={};
+  ZAM.forEach(function(z){
+    nameKeys(z.jmeno).forEach(function(k){(ZAMKEY[k]=ZAMKEY[k]||[]).push(z);});
+    nameTokens(z.jmeno).forEach(function(t){(ZAMSUR[t]=ZAMSUR[t]||[]).push(z);});
+  });
+}
+function pl(n,a,b,c){return n===1?a:((n>=2&&n<=4)?b:c);}
+function uniq(a){var s={},o=[];(a||[]).forEach(function(x){if(!s[x.id]){s[x.id]=1;o.push(x);}});return o;}
+// jistá shoda: shodné jméno i příjmení (nezávisle na pořadí)
+function zamFull(name){
+  var out=[];nameKeys(name).forEach(function(k){if(ZAMKEY[k])out=out.concat(ZAMKEY[k]);});
+  return uniq(out);
+}
+// možná shoda: příjmení sedí, křestní ne (typicky příbuzný / jmenovec)
+function zamSur(name){
+  var sur=surnameTok(name);if(!sur||!ZAMSUR[sur])return [];
+  var full={};zamFull(name).forEach(function(z){full[z.id]=1;});
+  return uniq(ZAMSUR[sur]).filter(function(z){return !full[z.id];});
+}
+var ROLERANK={"starosta":0,"místostarosta":1,"radní":2,"účetní":3,"zastupitel":4};
+function obecSlots(o){
+  var s=[];
+  if(o.starosta)s.push(["starosta",o.starosta]);
+  if(o.mistostarosta)s.push(["místostarosta",o.mistostarosta]);
+  if(o.ucetni)s.push(["účetní",o.ucetni]);
+  (o.rada||[]).forEach(function(x){s.push(["radní",x]);});
+  (o.zastupitelstvo||[]).forEach(function(x){s.push(["zastupitel",x]);});
+  (o.kandidati_2026||[]).forEach(function(x){s.push(["kandidát 2026",x]);});
+  return s;
+}
+function svazekSlots(s){
+  var a=[];
+  if(s.osoba)a.push([(s.funkce||"kontakt"),s.osoba]);
+  if(s.ucetni)a.push(["účetní",s.ucetni]);
+  return a;
+}
+function collectHits(slots,ctx){
+  var by={};
+  slots.forEach(function(sl){
+    var role=sl[0],nm=sl[1];
+    var f=zamFull(nm), list=f.length?f:zamSur(nm), typ=f.length?"jista":"mozna";
+    list.forEach(function(emp){
+      var k=typ+"|"+emp.id+"|"+nameKey(nm);
+      if(!by[k])by[k]={typ:typ,emp:emp,name:nm,roles:[],kod:ctx.kod,obec:ctx.nazev,sv:!!ctx.sv,svid:ctx.svid||null};
+      if(by[k].roles.indexOf(role)<0)by[k].roles.push(role);
+    });
+  });
+  return Object.keys(by).map(function(k){
+    var h=by[k];h.roles.sort(function(a,b){return (ROLERANK[a]==null?9:ROLERANK[a])-(ROLERANK[b]==null?9:ROLERANK[b]);});return h;
+  });
+}
+function vKeyOf(h){return String(h.kod||h.svid||"x")+"__"+nameKey(h.name).replace(/ /g,"_");}
+function recomputeZam(){
+  ZAMHITS={jista:[],mozna:[],neposouzene:0};ZAMBYKOD={};
+  if(!ZAM.length)return;
+  var all=[];
+  OBCE.forEach(function(o){all=all.concat(collectHits(obecSlots(o),{kod:o.kod,nazev:o.nazev}));});
+  SVAZKY.forEach(function(s){all=all.concat(collectHits(svazekSlots(s),{kod:null,nazev:s.nazev,sv:true,svid:s.id}));});
+  all.sort(function(a,b){return (a.obec||"").localeCompare(b.obec||"","cs")||(a.emp.jmeno||"").localeCompare(b.emp.jmeno||"","cs");});
+  all.forEach(function(h){
+    h.vkey=vKeyOf(h);
+    h.verd=(h.emp.verdikt||{})[h.vkey]||null;
+    if(!h.verd)ZAMHITS.neposouzene++;
+    ZAMHITS[h.typ].push(h);
+    // štítek na kartě obce jen u shod, které nejsou odškrtnuté jako náhoda jmen
+    if(h.typ==="jista"&&h.kod&&(!h.verd||h.verd.stav!=="nahoda")){(ZAMBYKOD[h.kod]=ZAMBYKOD[h.kod]||[]).push(h);}
+  });
+}
+// posouzení shody uživatelem: "ok" = opravdu náš člověk, "nahoda" = shoda jmen
+function setVerdikt(h,stav){
+  var r=FDB.ref("volby_zamestnanci/"+h.emp.id+"/verdikt/"+h.vkey);
+  var m=document.getElementById("zamMsg");if(m)m.textContent="Ukládám…";
+  r.set(stav?{stav:stav,kdo:_USER.email,ts:Date.now()}:null).then(function(){
+    if(m)m.textContent="";
+  }).catch(function(e){if(m)m.textContent="⚠️ "+(e&&e.message?e.message:e);});
+}
+// štítek u jména v detailu obce
+function zamTag(name){
+  if(!ZAM.length)return "";
+  var f=zamFull(name);
+  return f.length?"<span class='zamtag' title='"+esc(f.map(function(z){return z.jmeno+(z.pozice?" – "+z.pozice:"");}).join(", "))+"'>👷 VHOS</span>":"";
+}
+// badge na kartě/hlavičce obce
+function zamBadge(o){
+  var h=o&&o.kod?ZAMBYKOD[o.kod]:null;
+  if(!h||!h.length)return "";
+  var kdo=h.map(function(x){return x.emp.jmeno+" ("+x.roles.join(", ")+")";}).join(", ");
+  return "<span class='b zam' title=\""+esc(kdo)+"\">\uD83D\uDC77 "+(h.length>1?h.length+"\u00d7 ":"")+"VHOS</span>";
+}
+// doplněk do stavového řádku nad seznamem
+function zamStav(){
+  if(!ZAM.length)return "";
+  var osob={};ZAMHITS.jista.forEach(function(h){osob[h.emp.id]=1;});
+  var n=Object.keys(osob).length, nw=ZAMHITS.neposouzene||0;
+  return "\uD83D\uDC77 Kontrola VHOS: "+n+" "+pl(n,"shoda","shody","shod")+" jm\u00e9na a p\u0159\u00edjmen\u00ed"+(nw?", "+nw+" k posouzen\u00ed":", v\u0161e posouzeno")+". ";
+}
+function loadZam(){
+  FDB.ref("volby_zamestnanci").on("value",function(snap){
+    _zamErr="";var v=snap.val()||{};
+    ZAM=Object.keys(v).map(function(k){return v[k];}).filter(function(z){return z&&z.jmeno;})
+      .sort(function(a,b){return (a.jmeno||"").localeCompare(b.jmeno||"","cs");});
+    zamIndex();recomputeZam();initProv();updateStav();
+    if(_VIEW==="zam")renderZamView();
+    if(_VIEW==="list")render();
+  },function(err){
+    _zamErr=(err&&err.message)?err.message:String(err);
+    ZAM=[];zamIndex();recomputeZam();initProv();
+    if(_VIEW==="zam")renderZamView();
+  });
+}
+/* ---- parsování seznamu (soubor i vložený text) ---- */
+function looksLikeDate(f){var x=String(f||"").trim();return DATUMRE.test(x)||RCRE.test(x)||/^\d{4}$/.test(x);}
+function splitFields(ln){
+  if(ln.indexOf("\t")>=0)return ln.split("\t");
+  if(ln.indexOf(";")>=0)return ln.split(";");
+  if(ln.indexOf(",")>=0)return ln.split(",");
+  return [ln];
+}
+function parseZam(text){
+  var lines=String(text||"").split(/\r?\n/), out=[], seen={}, bad=[], dropped=0, dup=0;
+  lines.forEach(function(raw){
+    var ln=raw.trim();if(!ln)return;
+    var f=splitFields(ln).map(function(x){return x.trim();}).filter(function(x){return x!=="";});
+    if(!f.length)return;
+    // hlavička tabulky
+    var low=fold(f.join(" "));
+    if(!out.length&&/(prijmeni|jmeno|name|zamestnanec|osobni cislo)/.test(low)&&!nameTokens(f[0]).length)return;
+    if(!out.length&&/^(prijmeni|jmeno|name)\b/.test(fold(f[0])))return;
+    // zahodit sloupce, které vypadají jako datum narození / rodné číslo
+    var before=f.length;
+    f=f.filter(function(x){return !looksLikeDate(x);});
+    dropped+=before-f.length;
+    if(!f.length){bad.push(ln);return;}
+    var jm=f[0].replace(/,/g," ").replace(/\s+/g," ").trim(), rest=f.slice(1);
+    // "Novák;Jan;…" – příjmení a jméno ve dvou sloupcích
+    if(nameTokens(jm).length<2&&rest.length&&nameTokens(rest[0]).length===1&&!/\d/.test(rest[0])){
+      jm=(jm+" "+rest[0]).trim();rest=rest.slice(1);
+    }
+    var toks=nameTokens(jm);
+    if(toks.length<2){bad.push(ln);return;}
+    var id=toks.slice().sort().join("_").replace(/[^a-z0-9_]/g,"");
+    if(!id){bad.push(ln);return;}
+    if(seen[id]){dup++;return;}
+    seen[id]=1;
+    out.push({id:id,jmeno:jm,pozice:rest.join(" · ").slice(0,80)});
+  });
+  return {list:out,bad:bad,dropped:dropped,dup:dup};
+}
+/* ---- editor / import seznamu (v modálním okně) ---- */
+function zamToText(){return ZAM.map(function(z){return z.jmeno+(z.pozice?"; "+z.pozice:"");}).join("\n");}
+function openZamEditor(prefill){
+  var txt=prefill!=null?prefill:zamToText();
+  document.getElementById("modal").classList.add("show");
+  document.getElementById("mbody").innerHTML="<h2>👷 Seznam zaměstnanců VHOS</h2>"+
+    "<div class='hint' style='margin-top:6px'>Jedno jméno na řádek. Zvládne <b>Jméno Příjmení</b> i <b>Příjmení Jméno</b>, s tituly i bez. "+
+    "Za středníkem (nebo v dalším sloupci) může být středisko/pozice. Jde vložit i přímo z Excelu.</div>"+
+    "<div class='zamwarn'>🔒 <b>Data narození a rodná čísla se automaticky zahazují</b> – neukládají se a k porovnání nejsou potřeba. "+
+    "Seznam se uloží jen do Firebase za přihlášením, nikdy do GitHubu.</div>"+
+    "<div class='r' style='display:block;margin-top:10px'><textarea id='zm_text' rows='12' style='width:100%' placeholder='Novák Jan; provozní&#10;Ing. Petra Svobodová; ekonomický úsek'>"+esc(txt)+"</textarea></div>"+
+    "<div class='mtools'><button class='btn' id='zm_check'>🔍 Zkontrolovat</button>"+
+    "<button class='btn ghost' id='zm_file'>⬆️ Načíst ze souboru</button>"+
+    "<button class='btn ghost' id='zm_back'>← Zpět</button></div>"+
+    "<div id='zm_prev'></div><div class='msg' id='mmsg'></div>";
+  document.getElementById("zm_back").addEventListener("click",function(){document.getElementById("modal").classList.remove("show");});
+  document.getElementById("zm_file").addEventListener("click",function(){document.getElementById("zamFile").click();});
+  document.getElementById("zm_check").addEventListener("click",zamPreview);
+}
+function zamPreview(){
+  var r=parseZam(document.getElementById("zm_text").value);
+  _zamPre=r.list;
+  var box=document.getElementById("zm_prev");
+  if(!r.list.length){box.innerHTML="<div class='zamwarn'>Nenašel jsem ani jedno použitelné jméno (potřebuju alespoň jméno a příjmení na řádku).</div>";return;}
+  // kolik z nich rovnou sedí na zastupitelstva – jen náhled, počítá se z aktuálních dat
+  var saveZAM=ZAM,saveK=ZAMKEY,saveS=ZAMSUR;
+  ZAM=r.list;zamIndex();
+  var nHit=0;OBCE.forEach(function(o){if(collectHits(obecSlots(o),{kod:o.kod,nazev:o.nazev}).filter(function(h){return h.typ==="jista";}).length)nHit++;});
+  var nOsob={};OBCE.forEach(function(o){collectHits(obecSlots(o),{kod:o.kod,nazev:o.nazev}).forEach(function(h){if(h.typ==="jista")nOsob[h.emp.id]=1;});});
+  ZAM=saveZAM;ZAMKEY=saveK;ZAMSUR=saveS;
+  var info=[];
+  if(r.dropped)info.push("🔒 "+pl(r.dropped,"zahozeno","zahozena","zahozeno")+" <b>"+r.dropped+"</b> "+pl(r.dropped,"pole","pole","polí")+" s datem narození / rodným číslem (neukládá se)");
+  if(r.dup)info.push("sloučeno "+r.dup+" duplicit");
+  if(r.bad.length)info.push("<b>"+r.bad.length+"</b> "+pl(r.bad.length,"řádek","řádky","řádků")+" nerozpoznáno");
+  box.innerHTML="<div class='sekce'>Náhled – "+r.list.length+" "+pl(r.list.length,"zaměstnanec","zaměstnanci","zaměstnanců")+"</div>"+
+    (info.length?"<div class='hint'>"+info.join(" · ")+"</div>":"")+
+    "<div class='zampre'><ol>"+r.list.slice(0,300).map(function(z){
+      return "<li>"+esc(z.jmeno)+(z.pozice?" <span class='prazdne'>– "+esc(z.pozice)+"</span>":"")+"</li>";}).join("")+
+      (r.list.length>300?"<li>… a další "+(r.list.length-300)+"</li>":"")+"</ol></div>"+
+    (r.bad.length?"<div class='zamwarn'>Nerozpoznané řádky (přeskočí se):<br>"+r.bad.slice(0,8).map(esc).join("<br>")+(r.bad.length>8?"<br>…":"")+"</div>":"")+
+    "<div class='stav' style='margin-top:10px'>🔎 Předběžně: <b>"+Object.keys(nOsob).length+"</b> "+pl(Object.keys(nOsob).length,"zaměstnanec figuruje","zaměstnanci figurují","zaměstnanců figuruje")+" v <b>"+nHit+"</b> "+pl(nHit,"obci","obcích","obcích")+" (shoda jméno + příjmení).</div>"+
+    "<div class='mtools'><button class='btn' id='zm_save'>💾 Uložit seznam ("+r.list.length+")</button></div>";
+  document.getElementById("zm_save").addEventListener("click",saveZam);
+}
+function saveZam(){
+  if(!_zamPre||!_zamPre.length)return;
+  var stare={};ZAM.forEach(function(z){if(z.verdikt)stare[z.id]=z.verdikt;});
+  var obj={};_zamPre.forEach(function(z){
+    var r={id:z.id,jmeno:z.jmeno,pozice:z.pozice||"",zapsal:_USER.email,ts:Date.now()};
+    if(stare[z.id])r.verdikt=stare[z.id];   // už posouzené shody zůstanou posouzené
+    obj[z.id]=r;});
+  document.getElementById("mmsg").textContent="Ukládám…";
+  FDB.ref("volby_zamestnanci").set(obj).then(function(){
+    document.getElementById("modal").classList.remove("show");showView("zam");initProv();
+  }).catch(function(e){
+    document.getElementById("mmsg").innerHTML="⚠️ "+esc(e&&e.message?e.message:String(e))+
+      "<br>Ve Firebase je potřeba přidat pravidlo pro uzel <b>volby_zamestnanci</b> (stejné jako u volby_obce).";
+  });
+}
+function clearZam(){
+  if(!window.confirm("Opravdu smazat celý seznam zaměstnanců z databáze?"))return;
+  FDB.ref("volby_zamestnanci").set(null).then(function(){showView("zam");initProv();})
+    .catch(function(e){var m=document.getElementById("zamMsg");if(m)m.textContent="⚠️ "+(e&&e.message?e.message:e);});
+}
+function onZamFile(ev){
+  var f=(ev.target.files||[])[0];ev.target.value="";
+  if(!f)return;
+  var fr=new FileReader();
+  fr.onload=function(){
+    var t=String(fr.result||"");
+    if(/\.json$/i.test(f.name)){
+      try{
+        var j=JSON.parse(t);
+        var arr=Array.isArray(j)?j:(j&&Array.isArray(j.zamestnanci)?j.zamestnanci:[]);
+        t=arr.map(function(x){
+          if(typeof x==="string")return x;
+          var jm=[x.jmeno||x.Jmeno||x.name||"",x.prijmeni||x.Prijmeni||""].join(" ").trim()||String(x.cele||x.celeJmeno||"");
+          var poz=x.pozice||x.funkce||x.stredisko||x.utvar||"";
+          return jm+(poz?"; "+poz:"");
+        }).join("\n");
+      }catch(e){}
+    }
+    var open=document.getElementById("zm_text");
+    if(open){open.value=t;zamPreview();}
+    else{openZamEditor(t);zamPreview();}
+  };
+  fr.readAsText(f,"utf-8");
+}
+/* ---- přehled shod ---- */
+function zamCard(h){
+  var d=document.createElement("div");d.className="obec zamcard"+(h.typ==="mozna"?" mz":"")+(h.verd?" done":"");
+  var kde=h.sv?"💧 "+esc(h.obec):esc(h.obec);
+  d.innerHTML="<h3>"+(h.typ==="jista"?"👷 ":"❓ ")+esc(h.emp.jmeno)+"</h3>"+
+    "<div class='badges'><span class='b prac'>"+kde+"</span>"+
+    (h.emp.pozice?"<span class='b'>"+esc(h.emp.pozice)+"</span>":"")+
+    (h.verd?"<span class='b "+(h.verd.stav==="ok"?"ok":"np")+"'>"+(h.verd.stav==="ok"?"✓ platí":"✕ náhoda jmen")+"</span>":"")+"</div>"+
+    "<div class='role'>"+esc(h.roles.join(" · "))+": <b>"+esc(h.name)+"</b></div>"+
+    "<div class='hint'>"+(h.typ==="mozna"?"sedí jen příjmení, křestní ne":"sedí jméno i příjmení")+
+      " · v seznamu VHOS: "+esc(h.emp.jmeno)+(h.verd&&h.verd.kdo?" · posoudil "+esc(h.verd.kdo):"")+"</div>"+
+    "<div class='zamact'>"+
+      (h.verd
+        ? "<button class='btn ghost small' data-v='zpet'>↩ znovu posoudit</button>"
+        : "<button class='btn small' data-v='ok'>✓ platí</button><button class='btn ghost small' data-v='nahoda'>✕ náhoda jmen</button>")+
+      "<button class='btn ghost small' data-v='detail'>"+(h.sv?"💧 svazek":"🔎 detail obce")+"</button>"+
+    "</div>";
+  Array.prototype.forEach.call(d.querySelectorAll(".zamact button"),function(b){
+    b.addEventListener("click",function(e){
+      e.stopPropagation();
+      var v=b.getAttribute("data-v");
+      if(v==="detail"){
+        if(h.sv){var s=SVAZKY.filter(function(x){return x.id===h.svid;})[0];if(s)openSvazek(s);}
+        else{var o=obecByKod(h.kod);if(o)openModal(o);}
+        return;
+      }
+      setVerdikt(h,v==="zpet"?null:v);
+    });
+  });
+  return d;
+}
+function renderZamView(){
+  var g=document.getElementById("zamgrid"),p=document.getElementById("zampocet");
+  g.innerHTML="";
+  var osob={};ZAMHITS.jista.forEach(function(h){osob[h.emp.id]=1;});
+  var nO=Object.keys(osob).length, nNew=ZAMHITS.neposouzene||0;
+  p.innerHTML=(ZAM.length?
+      "Porovnáno se seznamem <b>"+ZAM.length+"</b> "+pl(ZAM.length,"zaměstnance","zaměstnanců","zaměstnanců")+
+      " · <b>"+nNew+"</b> "+pl(nNew,"shoda k posouzení","shody k posouzení","shod k posouzení")
+      :"Seznam zaměstnanců zatím není nahraný.")+
+    "<div class='zambar'>"+
+    "<button class='btn ghost small' id='zamPaste'>"+(ZAM.length?"✏️ Upravit seznam":"📋 Vložit seznam")+"</button>"+
+    "<button class='btn ghost small' id='zamImp'>⬆️ Načíst ze souboru</button>"+
+    (ZAM.length?"<button class='btn ghost small' id='zamDel'>🗑 Smazat seznam</button>":"")+
+    "</div><div class='msg' id='zamMsg'></div>";
+  document.getElementById("zamPaste").addEventListener("click",function(){openZamEditor();});
+  document.getElementById("zamImp").addEventListener("click",function(){document.getElementById("zamFile").click();});
+  var dl=document.getElementById("zamDel");if(dl)dl.addEventListener("click",clearZam);
+  if(_zamErr){document.getElementById("zamMsg").innerHTML="⚠️ "+esc(_zamErr)+" – ve Firebase chybí pravidlo pro uzel <b>volby_zamestnanci</b> (stejné jako volby_obce).";}
+  if(!ZAM.length){
+    g.innerHTML="<div class='zamnone'><div style='font-size:2.2rem'>👷</div><h3>Kontrola VHOS</h3>"+
+      "<p>Nahraj seznam zaměstnanců VHOS a apka projde všechny starosty, místostarosty, účetní, rady a zastupitelstva v okrese a vypíše shody jmen k posouzení.</p>"+
+      "<p>Až budou zveřejněné kandidátky pro volby 2026, projedou se stejným způsobem.</p>"+
+      "<p class='hint'>🔒 Data narození se z importu automaticky zahazují. Seznam je jen ve Firebase za přihlášením.</p></div>";
+    return;
+  }
+  var nove=[],hotovo=[];
+  ZAMHITS.jista.concat(ZAMHITS.mozna).forEach(function(h){(h.verd?hotovo:nove).push(h);});
+  // k posouzení: nejdřív jisté shody, pak jen-příjmení
+  nove.sort(function(a,b){return (a.typ===b.typ?0:(a.typ==="jista"?-1:1));});
+  if(!nove.length&&!hotovo.length){
+    g.innerHTML="<div class='zamnone'><div style='font-size:2.2rem'>✅</div><h3>Žádná shoda</h3>"+
+      "<p>Nikdo ze seznamu zaměstnanců není v současných zastupitelstvech, radách ani orgánech svazků.</p></div>";
+    return;
+  }
+  function sekce(cls,html){var h=document.createElement("div");h.className="zamsub"+(cls||"");h.innerHTML=html;g.appendChild(h);}
+  if(nove.length){
+    var nj=nove.filter(function(h){return h.typ==="jista";}).length;
+    sekce("","🔎 K posouzení <span class='cnt'>("+nove.length+" · z toho "+nj+" "+pl(nj,"shoda jméno i příjmení","shody jméno i příjmení","shod jméno i příjmení")+")</span>");
+    nove.forEach(function(h){g.appendChild(zamCard(h));});
+  }else{
+    sekce("","✅ Vše posouzeno <span class='cnt'>(žádná nová shoda)</span>");
+  }
+  if(hotovo.length){
+    var nok=hotovo.filter(function(h){return h.verd.stav==="ok";}).length;
+    sekce(" mz","✔ Už posouzeno <span class='cnt'>("+nok+"× platí · "+(hotovo.length-nok)+"× náhoda jmen)</span>");
+    hotovo.sort(function(a,b){return (a.verd.stav===b.verd.stav)?0:(a.verd.stav==="ok"?-1:1);});
+    hotovo.forEach(function(h){g.appendChild(zamCard(h));});
+  }
+}
+document.getElementById("zamFile").addEventListener("change",onZamFile);
 
 /* ---------- IMPORT KONTAKTŮ Z IM SEZNAMU ---------- */
 function importIM(){
@@ -870,8 +1247,9 @@ function runImport(K, SV, log){
   }).catch(function(e){log.textContent="⚠️ Chyba při importu: "+(e&&e.message?e.message:e);btn.disabled=false;});
 }
 document.getElementById("importIM").addEventListener("click",importIM);
+document.getElementById("kontrolaVHOS").addEventListener("click",function(){showView("zam");initProv();window.scrollTo(0,0);});
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-04 · v26 (VF: nejisté vodovody označené „prověřit“)";
+var VERZE="2026-08-24 · v28 (Kontrola VHOS – shody jmen k posouzení)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
