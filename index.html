@@ -189,7 +189,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <div id="zamwrap" class="hidden">
 <div class="pocet" id="zampocet"></div>
 <div class="grid" id="zamgrid"></div>
-<input type="file" id="zamFile" accept=".txt,.csv,.json,text/plain,text/csv,application/json" style="display:none" />
+<input type="file" id="zamFile" accept=".xlsx,.xlsm,.xlsb,.xls,.txt,.csv,.tsv,.json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/plain,text/csv,application/json" style="display:none" />
 </div>
 <div id="mapwrap" class="hidden"><div id="map"></div>
 <div class="maplegend">
@@ -943,7 +943,7 @@ function loadZam(){
   });
 }
 /* ---- parsování seznamu (soubor i vložený text) ---- */
-function looksLikeDate(f){var x=String(f||"").trim();return DATUMRE.test(x)||RCRE.test(x)||/^\d{4}$/.test(x);}
+function looksLikeDate(f){var x=String(f||"").trim();return DATUMRE.test(x)||RCRE.test(x)||/^\d{4,}$/.test(x);}
 function splitFields(ln){
   if(ln.indexOf("\t")>=0)return ln.split("\t");
   if(ln.indexOf(";")>=0)return ln.split(";");
@@ -987,12 +987,12 @@ function openZamEditor(prefill){
   document.getElementById("modal").classList.add("show");
   document.getElementById("mbody").innerHTML="<h2>👷 Seznam zaměstnanců VHOS</h2>"+
     "<div class='hint' style='margin-top:6px'>Jedno jméno na řádek. Zvládne <b>Jméno Příjmení</b> i <b>Příjmení Jméno</b>, s tituly i bez. "+
-    "Za středníkem (nebo v dalším sloupci) může být středisko/pozice. Jde vložit i přímo z Excelu.</div>"+
+    "Za středníkem (nebo v dalším sloupci) může být středisko/pozice. Jde vložit i přímo z Excelu (Ctrl+C / Ctrl+V) nebo načíst soubor .xlsx.</div>"+
     "<div class='zamwarn'>🔒 <b>Data narození a rodná čísla se automaticky zahazují</b> – neukládají se a k porovnání nejsou potřeba. "+
     "Seznam se uloží jen do Firebase za přihlášením, nikdy do GitHubu.</div>"+
     "<div class='r' style='display:block;margin-top:10px'><textarea id='zm_text' rows='12' style='width:100%' placeholder='Novák Jan; provozní&#10;Ing. Petra Svobodová; ekonomický úsek'>"+esc(txt)+"</textarea></div>"+
     "<div class='mtools'><button class='btn' id='zm_check'>🔍 Zkontrolovat</button>"+
-    "<button class='btn ghost' id='zm_file'>⬆️ Načíst ze souboru</button>"+
+    "<button class='btn ghost' id='zm_file'>⬆️ Načíst z Excelu / souboru</button>"+
     "<button class='btn ghost' id='zm_back'>← Zpět</button></div>"+
     "<div id='zm_prev'></div><div class='msg' id='mmsg'></div>";
   document.getElementById("zm_back").addEventListener("click",function(){document.getElementById("modal").classList.remove("show");});
@@ -1004,23 +1004,49 @@ function zamPreview(){
   _zamPre=r.list;
   var box=document.getElementById("zm_prev");
   if(!r.list.length){box.innerHTML="<div class='zamwarn'>Nenašel jsem ani jedno použitelné jméno (potřebuju alespoň jméno a příjmení na řádku).</div>";return;}
-  // kolik z nich rovnou sedí na zastupitelstva – jen náhled, počítá se z aktuálních dat
+  // shody se spočítají hned z aktuálních dat, ať je vidět, o které obce jde
   var saveZAM=ZAM,saveK=ZAMKEY,saveS=ZAMSUR;
   ZAM=r.list;zamIndex();
-  var nHit=0;OBCE.forEach(function(o){if(collectHits(obecSlots(o),{kod:o.kod,nazev:o.nazev}).filter(function(h){return h.typ==="jista";}).length)nHit++;});
-  var nOsob={};OBCE.forEach(function(o){collectHits(obecSlots(o),{kod:o.kod,nazev:o.nazev}).forEach(function(h){if(h.typ==="jista")nOsob[h.emp.id]=1;});});
+  var hits=[];
+  OBCE.forEach(function(o){hits=hits.concat(collectHits(obecSlots(o),{kod:o.kod,nazev:o.nazev}));});
+  SVAZKY.forEach(function(s){hits=hits.concat(collectHits(svazekSlots(s),{kod:null,nazev:s.nazev,sv:true,svid:s.id}));});
   ZAM=saveZAM;ZAMKEY=saveK;ZAMSUR=saveS;
+  hits.sort(function(a,b){return (a.obec||"").localeCompare(b.obec||"","cs");});
+  var jiste=hits.filter(function(h){return h.typ==="jista";}), mozne=hits.filter(function(h){return h.typ==="mozna";});
+  var obci={},osob={};jiste.forEach(function(h){obci[h.obec]=1;osob[h.emp.id]=1;});
+  var nOsob=Object.keys(osob).length,nObci=Object.keys(obci).length;
+  function radek(h){
+    return "<li><b>"+esc(h.emp.jmeno)+"</b> → "+(h.sv?"💧 ":"")+"<b>"+esc(h.obec)+"</b>"+
+      " <span class='prazdne'>"+esc(h.roles.join(" · "))+"</span></li>";
+  }
   var info=[];
   if(r.dropped)info.push("🔒 "+pl(r.dropped,"zahozeno","zahozena","zahozeno")+" <b>"+r.dropped+"</b> "+pl(r.dropped,"pole","pole","polí")+" s datem narození / rodným číslem (neukládá se)");
   if(r.dup)info.push("sloučeno "+r.dup+" duplicit");
   if(r.bad.length)info.push("<b>"+r.bad.length+"</b> "+pl(r.bad.length,"řádek","řádky","řádků")+" nerozpoznáno");
   box.innerHTML="<div class='sekce'>Náhled – "+r.list.length+" "+pl(r.list.length,"zaměstnanec","zaměstnanci","zaměstnanců")+"</div>"+
     (info.length?"<div class='hint'>"+info.join(" · ")+"</div>":"")+
+    (r.bad.length?"<div class='zamwarn'>Nerozpoznané řádky (přeskočí se):<br>"+r.bad.slice(0,8).map(esc).join("<br>")+(r.bad.length>8?"<br>…":"")+"</div>":"")+
+    // nalezené shody rovnou i s obcí
+    (jiste.length
+      ? "<div class='sekce'>👷 Nalezené shody – jméno i příjmení <span class='obd'>("+jiste.length+")</span></div>"+
+        "<div class='zampre'><ul class='zast'>"+jiste.slice(0,200).map(radek).join("")+
+        (jiste.length>200?"<li>… a další "+(jiste.length-200)+"</li>":"")+"</ul></div>"+
+        "<div class='stav' style='margin-top:8px'>🔎 <b>"+nOsob+"</b> "+pl(nOsob,"zaměstnanec","zaměstnanci","zaměstnanců")+
+        " v <b>"+nObci+"</b> "+pl(nObci,"obci / svazku","obcích / svazcích","obcích / svazcích")+
+        (mozne.length?" · k tomu "+mozne.length+" "+pl(mozne.length,"shoda","shody","shod")+" jen na příjmení":"")+
+        "</div>"
+      : "<div class='stav' style='margin-top:10px'>🔎 Žádná shoda jména a příjmení"+
+        (mozne.length?" · "+mozne.length+" "+pl(mozne.length,"shoda","shody","shod")+" jen na příjmení":"")+".</div>")+
+    (mozne.length
+      ? "<details class='sek2' style='margin-top:8px'><summary><span>❓ Jen shoda příjmení ("+mozne.length+")</span><span class='chev'>▾</span></summary>"+
+        "<div class='sbody'><ul class='zast'>"+mozne.slice(0,100).map(function(h){
+          return "<li>"+esc(h.emp.jmeno)+" ~ <b>"+esc(h.name)+"</b> → "+esc(h.obec)+" <span class='prazdne'>"+esc(h.roles.join(" · "))+"</span></li>";
+        }).join("")+(mozne.length>100?"<li>… a další "+(mozne.length-100)+"</li>":"")+"</ul></div></details>"
+      : "")+
+    "<div class='sekce'>Načtená jména</div>"+
     "<div class='zampre'><ol>"+r.list.slice(0,300).map(function(z){
       return "<li>"+esc(z.jmeno)+(z.pozice?" <span class='prazdne'>– "+esc(z.pozice)+"</span>":"")+"</li>";}).join("")+
       (r.list.length>300?"<li>… a další "+(r.list.length-300)+"</li>":"")+"</ol></div>"+
-    (r.bad.length?"<div class='zamwarn'>Nerozpoznané řádky (přeskočí se):<br>"+r.bad.slice(0,8).map(esc).join("<br>")+(r.bad.length>8?"<br>…":"")+"</div>":"")+
-    "<div class='stav' style='margin-top:10px'>🔎 Předběžně: <b>"+Object.keys(nOsob).length+"</b> "+pl(Object.keys(nOsob).length,"zaměstnanec figuruje","zaměstnanci figurují","zaměstnanců figuruje")+" v <b>"+nHit+"</b> "+pl(nHit,"obci","obcích","obcích")+" (shoda jméno + příjmení).</div>"+
     "<div class='mtools'><button class='btn' id='zm_save'>💾 Uložit seznam ("+r.list.length+")</button></div>";
   document.getElementById("zm_save").addEventListener("click",saveZam);
 }
@@ -1044,28 +1070,85 @@ function clearZam(){
   FDB.ref("volby_zamestnanci").set(null).then(function(){showView("zam");initProv();})
     .catch(function(e){var m=document.getElementById("zamMsg");if(m)m.textContent="⚠️ "+(e&&e.message?e.message:e);});
 }
+/* ---- načtení souboru: Excel (.xlsx/.xls), CSV, TXT, JSON ---- */
+var _xlsxLoad=null;
+function loadXLSX(){
+  if(window.XLSX)return Promise.resolve(window.XLSX);
+  if(_xlsxLoad)return _xlsxLoad;
+  _xlsxLoad=new Promise(function(res,rej){
+    var sc=document.createElement("script");
+    sc.src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js";
+    sc.onload=function(){window.XLSX?res(window.XLSX):rej(new Error("knihovna pro Excel se nenačetla"));};
+    sc.onerror=function(){rej(new Error("nepodařilo se stáhnout knihovnu pro Excel (jsi online?)"));};
+    document.head.appendChild(sc);
+  });
+  return _xlsxLoad;
+}
+// list z Excelu -> text oddělený tabulátory, který umí parseZam
+function xlsxToText(buf){
+  var wb=XLSX.read(new Uint8Array(buf),{type:"array",cellDates:true});
+  if(!wb.SheetNames.length)throw new Error("sešit neobsahuje žádný list");
+  var ws=wb.Sheets[wb.SheetNames[0]];
+  var rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,dateNF:"dd.mm.yyyy",defval:""});
+  return {
+    list:wb.SheetNames[0],
+    pocetListu:wb.SheetNames.length,
+    text:rows.map(function(r){return r.map(function(c){return String(c==null?"":c).trim();}).join("\t");})
+             .filter(function(l){return l.replace(/\t/g,"").trim()!=="";}).join("\n")
+  };
+}
+function zamMsgSet(m){var e=document.getElementById("mmsg")||document.getElementById("zamMsg");if(e)e.innerHTML=m;}
+function zamShowText(t){
+  var el=document.getElementById("zm_text");
+  if(el){el.value=t;}else{openZamEditor(t);}
+  zamPreview();
+}
+function jsonToText(t){
+  try{
+    var j=JSON.parse(t);
+    var arr=Array.isArray(j)?j:(j&&Array.isArray(j.zamestnanci)?j.zamestnanci:[]);
+    return arr.map(function(x){
+      if(typeof x==="string")return x;
+      var jm=[x.jmeno||x.Jmeno||x.name||"",x.prijmeni||x.Prijmeni||""].join(" ").trim()||String(x.cele||x.celeJmeno||"");
+      var poz=x.pozice||x.funkce||x.stredisko||x.utvar||"";
+      return jm+(poz?"; "+poz:"");
+    }).join("\n");
+  }catch(e){return t;}
+}
 function onZamFile(ev){
   var f=(ev.target.files||[])[0];ev.target.value="";
   if(!f)return;
+  if(/\.(xlsx|xlsm|xlsb|xls)$/i.test(f.name)){
+    zamMsgSet("Načítám Excel…");
+    loadXLSX().then(function(){
+      var fr=new FileReader();
+      fr.onload=function(){
+        try{
+          var r=xlsxToText(fr.result);
+          if(!r.text.trim()){zamMsgSet("⚠️ List <b>"+esc(r.list)+"</b> je prázdný.");return;}
+          zamShowText(r.text);
+          zamMsgSet("Načteno z listu <b>"+esc(r.list)+"</b>"+(r.pocetListu>1?" (sešit má listů: "+r.pocetListu+" – bere se první)":"")+".");
+        }catch(e){
+          zamMsgSet("⚠️ Excel se nepodařilo přečíst: "+esc(e&&e.message?e.message:String(e))+
+            "<br>Zkus v Excelu označit sloupce se jmény, Ctrl+C a vložit je sem do pole.");
+        }
+      };
+      fr.onerror=function(){zamMsgSet("⚠️ Soubor se nepodařilo otevřít.");};
+      fr.readAsArrayBuffer(f);
+    }).catch(function(e){
+      zamMsgSet("⚠️ "+esc(e&&e.message?e.message:String(e))+
+        "<br>Otevři soubor v Excelu, označ sloupce se jmény, Ctrl+C a vlož je sem do pole.");
+    });
+    return;
+  }
   var fr=new FileReader();
   fr.onload=function(){
     var t=String(fr.result||"");
-    if(/\.json$/i.test(f.name)){
-      try{
-        var j=JSON.parse(t);
-        var arr=Array.isArray(j)?j:(j&&Array.isArray(j.zamestnanci)?j.zamestnanci:[]);
-        t=arr.map(function(x){
-          if(typeof x==="string")return x;
-          var jm=[x.jmeno||x.Jmeno||x.name||"",x.prijmeni||x.Prijmeni||""].join(" ").trim()||String(x.cele||x.celeJmeno||"");
-          var poz=x.pozice||x.funkce||x.stredisko||x.utvar||"";
-          return jm+(poz?"; "+poz:"");
-        }).join("\n");
-      }catch(e){}
-    }
-    var open=document.getElementById("zm_text");
-    if(open){open.value=t;zamPreview();}
-    else{openZamEditor(t);zamPreview();}
+    if(/\.json$/i.test(f.name))t=jsonToText(t);
+    zamShowText(t);
+    zamMsgSet("");
   };
+  fr.onerror=function(){zamMsgSet("⚠️ Soubor se nepodařilo otevřít.");};
   fr.readAsText(f,"utf-8");
 }
 /* ---- přehled shod ---- */
@@ -1110,7 +1193,7 @@ function renderZamView(){
       :"Seznam zaměstnanců zatím není nahraný.")+
     "<div class='zambar'>"+
     "<button class='btn ghost small' id='zamPaste'>"+(ZAM.length?"✏️ Upravit seznam":"📋 Vložit seznam")+"</button>"+
-    "<button class='btn ghost small' id='zamImp'>⬆️ Načíst ze souboru</button>"+
+    "<button class='btn ghost small' id='zamImp'>⬆️ Načíst z Excelu / souboru</button>"+
     (ZAM.length?"<button class='btn ghost small' id='zamDel'>🗑 Smazat seznam</button>":"")+
     "</div><div class='msg' id='zamMsg'></div>";
   document.getElementById("zamPaste").addEventListener("click",function(){openZamEditor();});
@@ -1249,7 +1332,7 @@ function runImport(K, SV, log){
 document.getElementById("importIM").addEventListener("click",importIM);
 document.getElementById("kontrolaVHOS").addEventListener("click",function(){showView("zam");initProv();window.scrollTo(0,0);});
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-24 · v28 (Kontrola VHOS – shody jmen k posouzení)";
+var VERZE="2026-08-24 · v29 (Kontrola VHOS: načtení z Excelu + obce hned v náhledu)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
