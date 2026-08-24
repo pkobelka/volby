@@ -913,15 +913,19 @@ function svazekSlots(s){
   if(s.ucetni)a.push(["účetní",s.ucetni]);
   return a;
 }
+function hitName(h){return (h.names&&h.names.length>1)?h.names.join(" / "):h.name;}
 function collectHits(slots,ctx){
   var by={};
   slots.forEach(function(sl){
     var role=sl[0],nm=sl[1];
     var f=zamFull(nm), list=f.length?f:zamSur(nm), typ=f.length?"jista":"mozna";
     list.forEach(function(emp){
-      var k=typ+"|"+emp.id+"|"+nameKey(nm);
-      if(!by[k])by[k]={typ:typ,emp:emp,name:nm,roles:[],kod:ctx.kod,obec:ctx.nazev,sv:!!ctx.sv,svid:ctx.svid||null};
+      // klíč je osoba + obec, ne přesné znění jména – starosta a zastupitel
+      // bývají zapsaní jinak (titul, prostřední jméno) a je to pořád jeden člověk
+      var k=typ+"|"+emp.id+"|"+(ctx.kod||ctx.svid||nameKey(nm));
+      if(!by[k])by[k]={typ:typ,emp:emp,name:nm,names:[nm],roles:[],kod:ctx.kod,obec:ctx.nazev,sv:!!ctx.sv,svid:ctx.svid||null};
       if(by[k].roles.indexOf(role)<0)by[k].roles.push(role);
+      if(by[k].names.indexOf(nm)<0)by[k].names.push(nm);
     });
   });
   return Object.keys(by).map(function(k){
@@ -1101,14 +1105,22 @@ function zamPreview(){
   var nOsob=Object.keys(osob).length,nObci=Object.keys(obci).length;
   function radek(h){
     return "<li><b>"+esc(h.emp.jmeno)+"</b>"+(h.emp.stredisko?" <span class='prazdne'>("+esc(h.emp.stredisko)+")</span>":"")+
-      " → "+(h.sv?"💧 ":"")+"<b>"+esc(h.obec)+"</b> <span class='prazdne'>"+esc(h.roles.join(" · "))+"</span></li>";
+      " → "+(h.sv?"💧 ":"")+"<b>"+esc(h.obec)+"</b> <span class='prazdne'>"+esc(h.roles.join(" · "))+"</span>"+
+      (fold(h.emp.jmeno)!==fold(hitName(h))?" <span class='prazdne'>· v obci: "+esc(hitName(h))+"</span>":"")+"</li>";
   }
   var info=[];
   if(r.dropped)info.push("🔒 "+pl(r.dropped,"zahozeno","zahozena","zahozeno")+" <b>"+r.dropped+"</b> "+pl(r.dropped,"pole","pole","polí")+" s datem narození, rodným nebo osobním číslem");
   if(r.dup)info.push("sloučeno "+r.dup+" duplicit");
   if(r.bad.length)info.push("<b>"+r.bad.length+"</b> "+pl(r.bad.length,"řádek","řádky","řádků")+" nerozpoznáno");
-  box.innerHTML="<div class='sekce'>Náhled – "+r.list.length+" "+pl(r.list.length,"zaměstnanec","zaměstnanci","zaměstnanců")+"</div>"+
-    (info.length?"<div class='hint'>"+info.join(" · ")+"</div>":"")+
+  var strHTML=(r.stredy&&r.stredy.length)
+    ? "<div class='zampre' style='max-height:none'>"+r.stredy.map(function(x){
+        return "<div><b>"+esc(x)+"</b> – "+(r.poStr[x]||0)+" "+pl(r.poStr[x]||0,"člověk","lidé","lidí")+"</div>";}).join("")+
+      ((r.poStr[""]||0)?"<div><span class='prazdne'>bez střediska</span> – "+r.poStr[""]+"</div>":"")+"</div>"
+    : "";
+  box.innerHTML="<div class='sekce'>Náhled – "+r.list.length+" "+pl(r.list.length,"zaměstnanec","zaměstnanci","zaměstnanců")+
+      (r.stredy&&r.stredy.length?" <span class='obd'>· "+r.stredy.length+" "+pl(r.stredy.length,"středisko","střediska","středisek")+"</span>":"")+"</div>"+
+    (info.length?"<div class='hint'>"+info.join(" · ")+"</div>":"<div class='hint'>všechny řádky se podařilo přečíst</div>")+
+    strHTML+
     (r.bad.length>r.list.length?"<div class='zamwarn'>⚠️ Nerozpoznaných řádků je víc než načtených jmen – nejspíš má soubor jinou strukturu, než parser čeká. Zkontroluj náhled níž, ať se neuloží nesmysl.</div>":"")+
     (r.bad.length?"<div class='zamwarn'>Nerozpoznané řádky (přeskočí se):<br>"+r.bad.slice(0,8).map(esc).join("<br>")+(r.bad.length>8?"<br>…":"")+"</div>":"")+
     // nalezené shody rovnou i s obcí
@@ -1128,8 +1140,7 @@ function zamPreview(){
           return "<li>"+esc(h.emp.jmeno)+" ~ <b>"+esc(h.name)+"</b> → "+esc(h.obec)+" <span class='prazdne'>"+esc(h.roles.join(" · "))+"</span></li>";
         }).join("")+(mozne.length>100?"<li>… a další "+(mozne.length-100)+"</li>":"")+"</ul></div></details>"
       : "")+
-    "<div class='sekce'>Načtená jména"+(r.stredy&&r.stredy.length?" <span class='obd'>· "+r.stredy.length+" "+pl(r.stredy.length,"středisko","střediska","středisek")+"</span>":"")+"</div>"+
-    (r.stredy&&r.stredy.length?"<div class='hint'>"+r.stredy.map(function(x){return esc(x)+" ("+(r.poStr[x]||0)+")";}).join(" · ")+"</div>":"")+
+    "<div class='sekce'>Načtená jména</div>"+
     "<div class='zampre'><ol>"+r.list.slice(0,300).map(function(z){
       return "<li>"+esc(z.jmeno)+
         (z.stredisko||z.pozice?" <span class='prazdne'>– "+esc([z.stredisko,z.pozice].filter(Boolean).join(" · "))+"</span>":"")+"</li>";}).join("")+
@@ -1247,7 +1258,7 @@ function zamCard(h){
     (h.emp.stredisko?"<span class='b zam'>"+esc(h.emp.stredisko)+"</span>":"")+
     (h.emp.pozice?"<span class='b'>"+esc(h.emp.pozice)+"</span>":"")+
     (h.verd?"<span class='b "+(h.verd.stav==="ok"?"ok":"np")+"'>"+(h.verd.stav==="ok"?"✓ platí":"✕ náhoda jmen")+"</span>":"")+"</div>"+
-    "<div class='role'>"+esc(h.roles.join(" · "))+": <b>"+esc(h.name)+"</b></div>"+
+    "<div class='role'>"+esc(h.roles.join(" · "))+": <b>"+esc(hitName(h))+"</b></div>"+
     "<div class='hint'>"+(h.typ==="mozna"?"sedí jen příjmení, křestní ne":"sedí jméno i příjmení")+
       " · v seznamu VHOS: "+esc(h.emp.jmeno)+(h.verd&&h.verd.kdo?" · posoudil "+esc(h.verd.kdo):"")+"</div>"+
     "<div class='zamact'>"+
@@ -1420,7 +1431,7 @@ function runImport(K, SV, log){
 document.getElementById("importIM").addEventListener("click",importIM);
 document.getElementById("kontrolaVHOS").addEventListener("click",function(){showView("zam");initProv();window.scrollTo(0,0);});
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-24 · v30 (oprava načítání seznamu + střediska)";
+var VERZE="2026-08-24 · v31 (jedna osoba = jeden řádek; počty po střediscích)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
