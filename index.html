@@ -317,7 +317,10 @@ function updateStav(){
 function kandStav(){
   var k=kandStat();
   if(!k.obci)return "Kandidátky 2026 zatím nenačtené (🗳️ Kandidátky 2026 dole). ";
-  return "🗳️ Kandidátky 2026: "+k.kand+" "+pl(k.kand,"kandidát","kandidáti","kandidátů")+" v "+k.obci+" "+pl(k.obci,"obci","obcích","obcích")+". ";
+  return "🗳️ Kandidátky 2026: "+(k.kand
+      ? k.kand+" "+pl(k.kand,"kandidát","kandidáti","kandidátů")
+      : k.strany+" "+pl(k.strany,"volební strana","volební strany","volebních stran"))+
+    " v "+k.obci+" "+pl(k.obci,"obci","obcích","obcích")+". ";
 }
 
 /* ---------- SVAZKY VODOVODŮ ---------- */
@@ -451,12 +454,18 @@ function badgesHTML(o){var mimo=o.okres!=="Svitavy";
     (o.proverit?"<span class='b over'>🔎 k prověření</span>":"")+
     (o.overeno?"<span class='b ok'>✔ ověřeno</span>":(o.jistota==="nízká"?"<span class='b over'>starosta ověřit</span>":""))+
     kandBadge(o)+zamBadge(o);}
+function kandPocet(o){
+  var k=(o&&o.kandidati_2026)?o.kandidati_2026.length:0;
+  var st=(o&&(o.pocet_stran_2026||(o.strany_2026?o.strany_2026.length:0)))||0;
+  if(k)return k+" "+pl(k,"kandidát","kandidáti","kandidátů");
+  return st?st+" "+pl(st,"volební strana","volební strany","volebních stran"):"";
+}
 function kandBadge(o){
   var k=(o&&o.kandidati_2026)?o.kandidati_2026.length:0;
-  if(!k)return "";
-  var st=o.pocet_stran_2026||(o.strany_2026?o.strany_2026.length:0);
+  var st=(o&&(o.pocet_stran_2026||(o.strany_2026?o.strany_2026.length:0)))||0;
+  if(!k&&!st)return "";
   return "<span class='b kand' title='registrované kandidátní listiny pro volby 2026'>🗳️ "+
-    (st?st+" "+pl(st,"strana","strany","stran")+" / ":"")+k+" kand.</span>";
+    (st?st+" "+pl(st,"strana","strany","stran"):"")+(k?(st?" / ":"")+k+" kand.":"")+"</span>";
 }
 function groupHdr(g,provoz){var h=document.createElement("div");h.className="grouphdr"+(provoz?"":" npg");
   var n=OBCE.filter(function(o){return o.provozovano===provoz;}).length;
@@ -513,7 +522,7 @@ function render(){
     var d=document.createElement("div");d.className="obec"+(o.provozovano?"":" np");
     d.innerHTML="<h3>"+hl(o.nazev,_Q)+"</h3><div class='badges'>"+badgesHTML(o)+"</div>"+hitObec(o,_Q)+
       "<div class='hint'>"+((o.zastupitelstvo&&o.zastupitelstvo.length)?o.zastupitelstvo.length+" zastupitelů · ":"")+
-      ((o.kandidati_2026&&o.kandidati_2026.length)?"🗳️ "+o.kandidati_2026.length+" "+pl(o.kandidati_2026.length,"kandidát","kandidáti","kandidátů")+" 2026 · ":"")+"klikni pro detail</div>";
+      (kandPocet(o)?"🗳️ "+kandPocet(o)+" 2026 · ":"")+"klikni pro detail</div>";
     d.addEventListener("click",function(){openModal(o);});g.appendChild(d);
   });
   // při hledání ukaž i shodné svazky vodovodů
@@ -694,9 +703,9 @@ function renderModal(){
       det("Účetní",pz(o.ucetni),viewRow("Telefon",o.ucetni_tel,"tel")+viewRow("E-mail",o.ucetni_email,"email"),false)+
       det("Zastupitelstvo"+(z22.length?" ("+z22.length+")":""),"",zastList(z22,"— k doplnění —"),false);
     var k26=o.kandidati_2026||[], s26=o.strany_2026||[];
-    if(k26.length) body+="<div class='sekce'>Volby 2026 <span class='obd'>· období 2026–2030</span></div>"+
+    if(k26.length||s26.length) body+="<div class='sekce'>Volby 2026 <span class='obd'>· období 2026–2030</span></div>"+
       det("Kandidátky ("+(function(){var n=s26.length||o.pocet_stran_2026||0;
-        return (n?n+" "+pl(n,"strana","strany","stran")+" / ":"")+k26.length+" "+pl(k26.length,"kandidát","kandidáti","kandidátů");})()+")","",kandListHTML(o),false);
+        return (n?n+" "+pl(n,"strana","strany","stran"):"")+(k26.length?(n?" / ":"")+k26.length+" "+pl(k26.length,"kandidát","kandidáti","kandidátů"):"");})()+")","",kandListHTML(o),false);
     if(o.rada&&o.rada.length) body+=det("Městská rada ("+o.rada.length+")","",listUL(o.rada),false);
     if(o.terminy&&o.terminy.length) body+=det("Termíny zastupitelstev","",listCal(o.terminy,"Zastupitelstvo "+o.nazev,o.nazev),false);
     body+=det("Poznámky",secPencil("poznamky"),(o.poznamky?"<div class='r'><span class='pozn'>"+hl(o.poznamky,_Q)+"</span></div>":"<span class='prazdne'>— žádné (ťukni ✏️) —</span>"),false);
@@ -1378,21 +1387,22 @@ var _kandFiles=[], _kandPre=null;
 
 // pole, která z kandidátky potřebujeme; ke každému názvy sloupců, jak je píše volby.cz
 var KPOLE=[
-  ["kod",    "Kód obce *",           ["obec","kodobec","kodobce","kodzastup","kodzast","cisobec","cobec","obeckod","kod"]],
-  ["nazobec","Název obce",           ["nazevobec","nazevobce","obecnazev","nazevzastup","nazevzastupitelstva"]],
+  ["kod",    "Kód obce",             ["obec","kodobec","kodobce","kodzastup","kodzast","cisobec","cobec","obeckod","kod"]],
+  ["nazobec","Obec / zastupitelstvo", ["nazevobec","nazevobce","obecnazev","nazevzastup","nazevzastupitelstva","zastupitelstvo","zastupitelstvoobce"]],
   ["strc",   "Číslo volební strany", ["porstrhl","cislostrany","cstrana","cvs","cislovs","porcislostrany","cisstrany","cislokl"]],
-  ["strn",   "Název volební strany", ["nazevstrk","nazevcelk","nazevstrany","nazevvs","nazevstr","nazevkl","nazev"]],
+  ["strn",   "Volební strana / kandidátní listina", ["nazevstrk","nazevcelk","nazevstrany","nazevvs","nazevstr","nazevkl","kandidatnilistina","volebnistrana","nazevkandidatnilistiny","nazevvolebnistrany","vyberetekandidatnilistinu","nazev"]],
   ["strt",   "Typ volební strany",   ["typstrany","typstr","typ"]],
   ["por",    "Pořadí na kandidátce", ["porcislo","poradi","porc","poradovecislo","porcis"]],
-  ["prij",   "Příjmení *",           ["prijmeni","prijmenik","prijmenikand"]],
-  ["jm",     "Jméno *",              ["jmeno","jmenok","krestni","krestnijmeno"]],
-  ["cele",   "Celé jméno",           ["celejmeno","jmenoaprijmeni","jmenoprijmeni","kandidat","jmenokandidata"]],
+  ["prij",   "Příjmení",             ["prijmeni","prijmenik","prijmenikand"]],
+  ["jm",     "Jméno",                ["jmeno","jmenok","krestni","krestnijmeno"]],
+  ["cele",   "Celé jméno (příjmení, jméno, tituly)", ["prijmenijmenotituly","prijmenijmenatituly","prijmenijmeno","celejmeno","jmenoaprijmeni","jmenoprijmeni","kandidat","jmenokandidata"]],
   ["tp",     "Titul před",           ["titulpred","titulypred"]],
   ["tz",     "Titul za",             ["titulza","titulyza"]],
   ["vek",    "Věk",                  ["vek"]],
   ["pov",    "Povolání",             ["povolani","zamestnani"]],
   ["ps",     "Politická příslušnost",["pstrana","politickaprislusnost","polprislusnost","prislusnost"]],
-  ["ns",     "Navrhující strana",    ["nstrana","navrhujicistrana","navrhstrana"]]
+  ["ns",     "Navrhující strana",    ["nstrana","navrhujicistrana","navrhstrana"]],
+  ["byd",    "Bydliště",             ["bydliste","obecbydliste","trvalybytem"]]
 ];
 function kfold(s){return fold(String(s==null?"":s)).replace(/[^a-z0-9]/g,"");}
 
@@ -1458,20 +1468,71 @@ function kandXML(text){
   });
   return {hdr:keys,rows:objs.map(function(o){return keys.map(function(k){return o[k]==null?"":o[k];});})};
 }
-function kandJSON(text){
-  var j=JSON.parse(text);
-  var arr=Array.isArray(j)?j:(j&&Array.isArray(j.kandidati)?j.kandidati:(j&&Array.isArray(j.data)?j.data:null));
-  if(!arr||!arr.length)throw new Error("v JSONu není pole s kandidáty");
-  var keys=[],ki={};
-  arr.forEach(function(o){if(o&&typeof o==="object")Object.keys(o).forEach(function(k){if(!ki[k]){ki[k]=1;keys.push(k);}});});
-  return {hdr:keys,rows:arr.map(function(o){return keys.map(function(k){return (o&&o[k]!=null)?String(o[k]):"";});})};
+/* JSON z volby.gov.cz je vnořený (okres → obec → volební strana → kandidát).
+   Projdeme ho do hloubky a z každé nejhlubší úrovně uděláme jeden řádek –
+   políčka z nadřazených úrovní (kód obce, číslo strany) se k němu přidají.
+   Když se název pole opakuje na víc úrovních, vnější zůstane pod svým jménem
+   a vnitřní dostane _2, _3 – ať se kód obce nepřepíše číslem strany. */
+function kandFlatJSON(j){
+  var keys=[],ki={},objs=[];
+  function pridej(cil,k,v){
+    if(cil[k]===undefined){cil[k]=v;return;}
+    for(var i=2;i<9;i++){if(cil[k+"_"+i]===undefined){cil[k+"_"+i]=v;return;}}
+  }
+  function potomci(o){
+    var out=[];
+    Object.keys(o).forEach(function(k){
+      var v=o[k];
+      if(Array.isArray(v)){if(v.some(function(x){return x&&typeof x==="object";}))out.push(v);}
+      else if(v&&typeof v==="object")out.push([v]);
+    });
+    return out;
+  }
+  function projdi(node,zded){
+    if(Array.isArray(node)){node.forEach(function(x){projdi(x,zded);});return;}
+    if(!node||typeof node!=="object")return;
+    var cur={},k;
+    for(k in zded)if(Object.prototype.hasOwnProperty.call(zded,k))cur[k]=zded[k];
+    Object.keys(node).forEach(function(kk){
+      var v=node[kk];
+      if(v===null||typeof v==="object")return;
+      pridej(cur,kk,String(v));
+    });
+    var kids=potomci(node);
+    if(!kids.length){
+      Object.keys(cur).forEach(function(kk){if(!ki[kk]){ki[kk]=1;keys.push(kk);}});
+      objs.push(cur);
+      return;
+    }
+    kids.forEach(function(arr){projdi(arr,cur);});
+  }
+  projdi(j,{});
+  if(!objs.length)throw new Error("v JSONu nejsou žádné záznamy");
+  return {hdr:keys,rows:objs.map(function(o){return keys.map(function(k){return o[k]==null?"":o[k];});})};
+}
+function kandJSON(text){return kandFlatJSON(JSON.parse(text));}
+// Export z volby.gov.cz má nad tabulkou nadpis, počet záznamů a dvouřádkovou
+// hlavičku – za hlavičku vezmeme ten z prvních řádků, ze kterého se dá přečíst
+// nejvíc sloupců.
+function kandHlavicka(rows){
+  var best={i:0,skore:-1,hdr:rows[0]||[],map:{}};
+  var n=Math.min(rows.length-1,8);
+  for(var i=0;i<n;i++){
+    var hdr=rows[i].map(function(x){return String(x==null?"":x).trim();});
+    if(hdr.filter(function(x){return x!=="";}).length<2)continue;
+    var m=kandAutoMap(hdr), sk=0;
+    for(var f in m)if(Object.prototype.hasOwnProperty.call(m,f))sk++;
+    if(sk>best.skore)best={i:i,skore:sk,hdr:hdr,map:m};
+  }
+  return best;
 }
 function kandTable(name,text,buf){
   if(/\.xml$/i.test(name)||/^\s*<\?xml|^\s*<[A-Za-z]/.test(text.slice(0,200)))return kandXML(text);
   if(/\.json$/i.test(name)||/^\s*[\[{]/.test(text.slice(0,50)))return kandJSON(text);
   var rows=kandCSV(text,kandDelim(text));
   if(!rows.length)throw new Error("soubor je prázdný");
-  return {hdr:rows[0].map(function(x){return String(x).trim();}),rows:rows.slice(1)};
+  var h=kandHlavicka(rows);
+  return {hdr:h.hdr,rows:rows.slice(h.i+1),hdrRadek:h.i};
 }
 function kandReadFile(f){
   if(/\.(xlsx|xlsm|xlsb|xls)$/i.test(f.name)){
@@ -1485,7 +1546,8 @@ function kandReadFile(f){
             var rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:""})
               .filter(function(r){return r.join("").trim()!=="";});
             if(!rows.length)return rej(new Error(f.name+": list je prázdný"));
-            res({name:f.name,hdr:rows[0].map(function(x){return String(x).trim();}),rows:rows.slice(1)});
+            var h=kandHlavicka(rows);
+            res({name:f.name,hdr:h.hdr,rows:rows.slice(h.i+1)});
           }catch(e){rej(new Error(f.name+": "+(e&&e.message?e.message:e)));}
         };
         fr.onerror=function(){rej(new Error(f.name+": soubor se nepodařilo otevřít"));};
@@ -1515,6 +1577,17 @@ function kandAutoMap(hdr){
       if(p[2].indexOf(fh[i])>=0){map[p[0]]=i;used[i]=1;return;}
     }
   });
+  // Ve vnořeném JSONu se stejné názvy opakují na víc úrovních (obec i strana mají
+  // "nazev") – hlubší úroveň dostala _2, _3 a je to ta konkrétnější, takže název
+  // volební strany bereme z ní a to holé "nazev" zůstane obci.
+  if(map.strn!=null&&/^nazev$/.test(fh[map.strn])){
+    var hlubsi=-1;
+    for(var z=0;z<fh.length;z++)if(/^nazev_[2-9]$/.test(fh[z]))hlubsi=z;
+    if(hlubsi>=0){
+      if(map.nazobec==null)map.nazobec=map.strn;
+      map.strn=hlubsi;used[hlubsi]=1;
+    }
+  }
   KPOLE.forEach(function(p){                       // 2) sloupec název jen obsahuje
     if(map[p[0]]!=null)return;
     for(var i=0;i<fh.length;i++){
@@ -1526,21 +1599,48 @@ function kandAutoMap(hdr){
   });
   return map;
 }
-function kandKind(map){
-  var jm=(map.prij!=null&&map.jm!=null)||map.cele!=null;
-  if(map.kod==null)return "nic";
+function kandKind(map,obecFix){
+  var jm=(map.prij!=null||map.jm!=null)||map.cele!=null;
+  if(map.kod==null&&map.nazobec==null&&!obecFix)return "nic";
   return jm?"kand":((map.strn!=null||map.strc!=null)?"strany":"nic");
 }
 
 /* ---- složení kandidátek po obcích ---- */
 function kandCislo(x){var m=String(x||"").match(/\d+/);return m?parseInt(m[0],10):0;}
+// "1 – Sdružení nezávislých kandidátů Březiny" -> číslo 1 + název bez čísla
+function kandStranaRozdel(s){
+  var t=String(s||"").trim(), m=t.match(/^(\d{1,3})\s*[-–—.:)]\s*(.+)$/);
+  return m?{c:parseInt(m[1],10),nazev:m[2].trim()}:{c:0,nazev:t};
+}
+// obec z buňky: "577898", "Březiny" i "Březiny (577898)"
+var _OBECIDX=null;
+function kandObecIndex(){
+  _OBECIDX={kod:{},nazev:{}};
+  OBCE.forEach(function(o){
+    _OBECIDX.kod[String(o.kod)]=o;
+    var n=fold(o.nazev).trim();
+    if(!_OBECIDX.nazev[n])_OBECIDX.nazev[n]=o;
+  });
+  return _OBECIDX;
+}
+function kandNajdiObec(kodBunka,nazevBunka){
+  var ix=_OBECIDX||kandObecIndex();
+  var kod=String(kodBunka||"").replace(/\D/g,"");
+  if(kod&&ix.kod[kod])return ix.kod[kod];
+  var nz=String(nazevBunka||"").trim();
+  if(!nz)return null;
+  var vKod=nz.match(/\((\d{5,6})\)/);            // "Březiny (577898)"
+  if(vKod&&ix.kod[vKod[1]])return ix.kod[vKod[1]];
+  var jen=fold(nz.replace(/\s*\(.*\)\s*/,"")).trim();
+  return ix.nazev[jen]||null;
+}
 function kandJmeno(g,r){
   var cele=g(r,"cele");
   if(cele)return cele.replace(/\s+/g," ").trim();
   return [g(r,"jm"),g(r,"prij")].filter(Boolean).join(" ").replace(/\s+/g," ").trim();
 }
 function kandBuild(){
-  var ourKod={};OBCE.forEach(function(o){ourKod[String(o.kod)]=o;});
+  kandObecIndex();
   var by={}, stat={rows:0,kand:0,mimo:0,bezKodu:0,dup:0,nezn:{},souboru:_kandFiles.length};
   function strana(kod,c,nazev,typ){
     var b=by[kod]||(by[kod]={strany:{},poradi:[]});
@@ -1556,24 +1656,30 @@ function kandBuild(){
     var m=F.map, g=function(r,f){var i=m[f];return (i==null||i<0)?"":String(r[i]==null?"":r[i]).trim();};
     F.rows.forEach(function(r){
       stat.rows++;
-      var kod=g(r,"kod").replace(/\D/g,"");
-      if(!kod){stat.bezKodu++;return;}
-      if(!ourKod[kod]){stat.mimo++;stat.nezn[kod]=(stat.nezn[kod]||0)+1;return;}
-      var s=strana(kod,kandCislo(g(r,"strc")),g(r,"strn"),g(r,"strt"));
+      var obec=F.obec?_OBECIDX.kod[F.obec]:kandNajdiObec(g(r,"kod"),g(r,"nazobec"));
+      if(!obec){
+        var syr=(g(r,"kod")||g(r,"nazobec")||"").trim();
+        if(!syr){stat.bezKodu++;return;}
+        stat.mimo++;stat.nezn[syr]=(stat.nezn[syr]||0)+1;return;
+      }
+      var kod=String(obec.kod);
+      // číslo strany bývá i uvnitř názvu: "1 – Sdružení nezávislých kandidátů"
+      var rz=kandStranaRozdel(g(r,"strn"));
+      var s=strana(kod,kandCislo(g(r,"strc"))||rz.c,rz.nazev,g(r,"strt"));
       var jm=kandJmeno(g,r);
       if(!jm)return;                                // řádek jen o volební straně
       var k={p:kandCislo(g(r,"por")),jmeno:jm};
-      var tp=g(r,"tp"),tz=g(r,"tz"),vek=g(r,"vek"),pov=g(r,"pov"),ps=g(r,"ps"),ns=g(r,"ns");
+      var tp=g(r,"tp"),tz=g(r,"tz"),vek=g(r,"vek"),pov=g(r,"pov"),ps=g(r,"ps"),ns=g(r,"ns"),byd=g(r,"byd");
       if(tp)k.tp=tp; if(tz)k.tz=tz;
       if(kandCislo(vek))k.vek=kandCislo(vek);
-      if(pov)k.pov=pov; if(ps)k.ps=ps; if(ns)k.ns=ns;
+      if(pov)k.pov=pov; if(ps)k.ps=ps; if(ns)k.ns=ns; if(byd)k.byd=byd;
       var dk=k.p+"|"+kfold(jm);
       if(s.vid[dk]){stat.dup++;return;}
       s.vid[dk]=1;s.kand.push(k);stat.kand++;
     });
   });
   // seřadit strany podle čísla na hlasovacím lístku a kandidáty podle pořadí
-  var out={};
+  var out={}, ourKod=_OBECIDX.kod;
   Object.keys(by).forEach(function(kod){
     var b=by[kod];
     var strany=b.poradi.map(function(k){return b.strany[k];})
@@ -1593,9 +1699,10 @@ function kandBuild(){
 
 /* ---- okno importu ---- */
 function kandStat(){
-  var s=OBCE.filter(function(o){return (o.kandidati_2026||[]).length;});
+  var s=OBCE.filter(function(o){return (o.kandidati_2026||[]).length||(o.strany_2026||[]).length;});
   var k=s.reduce(function(a,o){return a+(o.kandidati_2026||[]).length;},0);
-  return {obci:s.length,kand:k};
+  var st=s.reduce(function(a,o){return a+(o.strany_2026||[]).length;},0);
+  return {obci:s.length,kand:k,strany:st};
 }
 function kandMsg(m){var e=document.getElementById("mmsg");if(e)e.innerHTML=m;}
 function kandOpen(){
@@ -1605,27 +1712,61 @@ function kandOpen(){
   document.getElementById("modal").classList.add("show");
   document.getElementById("mbody").innerHTML="<h2>🗳️ Kandidátky pro volby 2026</h2>"+
     "<div class='stav' style='margin-top:8px'>"+(st.obci
-      ? "Načteno u <b>"+st.obci+"</b> "+pl(st.obci,"obce","obcí","obcí")+" · celkem <b>"+st.kand+"</b> "+pl(st.kand,"kandidát","kandidáti","kandidátů")
+      ? "Načteno u <b>"+st.obci+"</b> "+pl(st.obci,"obce","obcí","obcí")+" · <b>"+st.strany+"</b> "+pl(st.strany,"volební strana","volební strany","volebních stran")+
+        (st.kand?" · <b>"+st.kand+"</b> "+pl(st.kand,"kandidát","kandidáti","kandidátů"):" · zatím bez jmen kandidátů")
       : "Kandidátky zatím nejsou načtené.")+"</div>"+
-    "<div class='hint' style='margin-top:10px'>Stáhni si z <b>volby.cz</b> (Otevřená data → volby do zastupitelstev obcí 2026 → "+
-    "registrované kandidátní listiny) soubor s kandidáty za celou ČR – <b>CSV</b> i <b>XML</b> apka přečte, stejně jako Excel nebo JSON. "+
-    "Okres Svitavy se z něj vybere sám podle kódů našich obcí, ostatní řádky se zahodí. "+
-    "Když je seznam volebních stran v samostatném souboru, vyber oba naráz.</div>"+
+    "<div class='hint' style='margin-top:10px'><b>Jak na to na volby.gov.cz</b> (Jmenné seznamy a přehledy): "+
+    "nech filtr <b>Kraj: Pardubický</b> a <b>Okres: Svitavy</b> a ostatní filtry <b>zruš</b> – hlavně "+
+    "<i>Zastupitelstvo</i> a <i>Vyberte kandidátní listinu</i>. V tabulce pak jsou všichni kandidáti okresu naráz "+
+    "a stačí jedno kliknutí na ikonu stažení (⤓) vpravo nad tabulkou. Kandidátky se nestahují po jedné.</div>"+
+    "<div class='hint'>Ten jeden soubor nahraj sem. Apka zvládne <b>CSV</b> (i ve windows-1250), <b>XLSX</b>, <b>XML</b> i <b>JSON</b>, "+
+    "poradí si s nadpisem a dvouřádkovou hlavičkou nad tabulkou i se jménem v jednom sloupci (<i>Dudek Tomáš Ing.</i>) "+
+    "a obec pozná podle kódu i podle názvu. Kdyby přece jen vznikly soubory po obcích, vyber je všechny naráz.</div>"+
     "<div class='zamwarn'>Soubor se nikam neposílá – přečte se v prohlížeči a uloží se jen to, co patří našim obcím, do Firebase za přihlášením.</div>"+
+    "<div class='r' style='display:block;margin-top:10px'><b>Nebo rovnou z adresy</b>"+
+    "<div style='display:flex;gap:8px;flex-wrap:wrap;margin-top:6px'>"+
+    "<input id='kd_url' style='flex:1;min-width:220px' placeholder='https://volby.gov.cz/… (odkaz na data, ne na stránku)' />"+
+    "<button class='btn ghost' id='kd_get'>🌐 Stáhnout</button></div></div>"+
+    "<div class='hint'>Stahuje tvůj prohlížeč, ne server – takže to projde jen u adres, které stahování z cizí stránky povolují. "+
+    "Když prohlížeč odmítne, ulož si soubor na disk a nahraj ho tlačítkem níž.</div>"+
     "<div class='mtools'><button class='btn' id='kd_file'>⬆️ Vybrat soubor s kandidátkami</button>"+
     (st.obci?"<button class='btn ghost' id='kd_del'>🗑 Smazat načtené kandidátky</button>":"")+
     "<button class='btn ghost' id='kd_back'>← Zpět</button></div>"+
     "<div id='kd_body'></div><div class='msg' id='mmsg'></div>";
   document.getElementById("kd_file").addEventListener("click",function(){document.getElementById("kandFile").click();});
+  document.getElementById("kd_get").addEventListener("click",kandFetchUrl);
+  document.getElementById("kd_url").addEventListener("keydown",function(e){if(e.key==="Enter")kandFetchUrl();});
   document.getElementById("kd_back").addEventListener("click",function(){document.getElementById("modal").classList.remove("show");});
   var d=document.getElementById("kd_del");if(d)d.addEventListener("click",kandClear);
+}
+function kandFetchUrl(){
+  var el=document.getElementById("kd_url"), url=(el&&el.value||"").trim();
+  if(!url){kandMsg("Vlož adresu souboru s kandidátkami.");return;}
+  if(!/^https?:\/\//i.test(url)){kandMsg("⚠️ Adresa musí začínat http:// nebo https://");return;}
+  kandMsg("Stahuji…");
+  fetch(url).then(function(r){
+    if(!r.ok)throw new Error("server odpověděl "+r.status+" "+r.statusText);
+    return r.text();
+  }).then(function(t){
+    var jm=url.split("?")[0].split("/").pop()||"data";
+    var tb=kandTable(jm,t);
+    _kandFiles=[{name:jm,hdr:tb.hdr,rows:tb.rows,map:kandAutoMap(tb.hdr),obec:null,kind:""}];
+    _kandFiles[0].kind=kandKind(_kandFiles[0].map,null);
+    kandMsg("");
+    kandRender();
+  }).catch(function(e){
+    var m=(e&&e.message)?e.message:String(e);
+    kandMsg("⚠️ Stažení se nepovedlo: "+esc(m)+
+      "<br>Nejspíš to prohlížeč nepustil, protože ta adresa nepovoluje stahování z cizí stránky (CORS). "+
+      "Otevři odkaz v novém panelu, ulož soubor na disk a nahraj ho tlačítkem <b>Vybrat soubor s kandidátkami</b>.");
+  });
 }
 function onKandFile(ev){
   var files=Array.prototype.slice.call(ev.target.files||[]);ev.target.value="";
   if(!files.length)return;
   kandMsg("Načítám "+files.length+" "+pl(files.length,"soubor","soubory","souborů")+"…");
   Promise.all(files.map(kandReadFile)).then(function(list){
-    _kandFiles=list.map(function(F){F.map=kandAutoMap(F.hdr);F.kind=kandKind(F.map);return F;});
+    _kandFiles=list.map(function(F){F.map=kandAutoMap(F.hdr);F.kind=kandKind(F.map,F.obec);return F;});
     kandMsg("");
     kandRender();
   }).catch(function(e){kandMsg("⚠️ "+esc(e&&e.message?e.message:String(e)));});
@@ -1644,15 +1785,24 @@ function kandRender(){
     var popis=F.kind==="kand"?"kandidáti":(F.kind==="strany"?"jen volební strany":"⚠️ sloupce se nepodařilo rozpoznat");
     html+=det("📄 "+F.name+" – "+F.rows.length+" "+pl(F.rows.length,"řádek","řádky","řádků")+" · "+popis,"",
       "<div class='hint' style='margin-top:6px'>Sloupce apka přiřadila podle názvů v hlavičce. Když něco sedí špatně, přepiš to tady.</div>"+
+      "<div class='kmap'><label>Celý soubor patří obci<select id='kob_"+fi+"' data-f='"+fi+"'>"+
+        "<option value=''>— podle sloupce v souboru —</option>"+
+        OBCE.map(function(o){return "<option value='"+esc(String(o.kod))+"'"+(F.obec===String(o.kod)?" selected":"")+">"+esc(o.nazev)+"</option>";}).join("")+
+      "</select></label></div>"+
+      "<div class='hint'>Vyplň, jen když je v souboru jedna jediná obec a nemá vlastní sloupec (export za jednu kandidátku).</div>"+
       "<div class='kmap'>"+KPOLE.map(function(p){return kandSelect(fi,p[0],F.hdr,F.map[p[0]]==null?-1:F.map[p[0]]);}).join("")+"</div>",
       F.kind==="nic");
   });
   box.innerHTML=html+"<div id='kd_prev'></div>";
   Array.prototype.forEach.call(box.querySelectorAll(".kmap select"),function(s){
     s.addEventListener("change",function(){
-      var F=_kandFiles[+s.getAttribute("data-f")], v=+s.value;
-      if(v<0)delete F.map[s.getAttribute("data-p")];else F.map[s.getAttribute("data-p")]=v;
-      F.kind=kandKind(F.map);
+      var F=_kandFiles[+s.getAttribute("data-f")];
+      if(s.id.indexOf("kob_")===0){F.obec=s.value||null;}
+      else{
+        var v=+s.value;
+        if(v<0)delete F.map[s.getAttribute("data-p")];else F.map[s.getAttribute("data-p")]=v;
+      }
+      F.kind=kandKind(F.map,F.obec);
       kandPreview();
     });
   });
@@ -1661,17 +1811,18 @@ function kandRender(){
 function kandPreview(){
   var box=document.getElementById("kd_prev");
   if(!box)return;
-  if(!_kandFiles.some(function(F){return F.kind==="kand";})){
-    box.innerHTML="<div class='zamwarn'>⚠️ V žádném souboru nejsou vyplněné sloupce <b>kód obce</b> a <b>jméno + příjmení</b> (nebo celé jméno). Přiřaď je nahoře ručně.</div>";
+  if(!_kandFiles.some(function(F){return F.kind==="kand"||F.kind==="strany";})){
+    box.innerHTML="<div class='zamwarn'>⚠️ V žádném souboru není vyplněný <b>kód obce</b> a k tomu buď jméno kandidáta, nebo volební strana. Přiřaď sloupce nahoře ručně.</div>";
     return;
   }
   _kandPre=kandBuild();
   var P=_kandPre, s=P.stat;
-  if(!s.kand){
-    box.innerHTML="<div class='zamwarn'>⚠️ Ze souboru nevyšel ani jeden kandidát pro naše obce"+
+  if(!s.strany){
+    box.innerHTML="<div class='zamwarn'>⚠️ Pro naše obce z toho nevyšlo vůbec nic"+
       (s.mimo?" – všech "+s.mimo+" řádků s kódem obce patří jinam. Sedí sloupec s kódem obce?":".")+"</div>";
     return;
   }
+  var bezJmen=!s.kand;
   var ourKod={};OBCE.forEach(function(o){ourKod[String(o.kod)]=o;});
   var chybi=OBCE.filter(function(o){return !P.byKod[String(o.kod)];});
   // shody se seznamem zaměstnanců VHOS – hned je vidět, koho hlídat
@@ -1687,15 +1838,20 @@ function kandPreview(){
   var radky=Object.keys(P.byKod).map(function(kod){return {o:ourKod[kod],d:P.byKod[kod]};})
     .sort(function(a,b){return a.o.nazev.localeCompare(b.o.nazev,"cs");});
   box.innerHTML=
-    "<div class='sekce'>Náhled – "+s.kand+" "+pl(s.kand,"kandidát","kandidáti","kandidátů")+
-      " <span class='obd'>· "+s.strany+" "+pl(s.strany,"volební strana","volební strany","volebních stran")+
-      " · "+s.obci+" z "+OBCE.length+" "+pl(OBCE.length,"obce","obcí","obcí")+"</span></div>"+
+    "<div class='sekce'>Náhled – "+(bezJmen
+      ? s.strany+" "+pl(s.strany,"volební strana","volební strany","volebních stran")
+      : s.kand+" "+pl(s.kand,"kandidát","kandidáti","kandidátů")+
+        " <span class='obd'>· "+s.strany+" "+pl(s.strany,"volební strana","volební strany","volebních stran")+"</span>")+
+      " <span class='obd'>· "+s.obci+" z "+OBCE.length+" "+pl(OBCE.length,"obce","obcí","obcí")+"</span></div>"+
+    (bezJmen?"<div class='zamwarn'>V souboru jsou jen <b>volební strany</b>, žádná jména kandidátů. Uložit to jde – kandidáti se doplní, až budou jmenné seznamy k dispozici. Kontrola VHOS zatím nebude mít co porovnávat.</div>":"")+
     "<div class='hint'>přečteno "+s.rows+" "+pl(s.rows,"řádek","řádky","řádků")+
-      " · mimo naše obce "+s.mimo+" · bez kódu obce "+s.bezKodu+(s.dup?" · duplicit "+s.dup:"")+"</div>"+
+      " · mimo náš okres "+s.mimo+" · bez určené obce "+s.bezKodu+(s.dup?" · duplicit "+s.dup:"")+"</div>"+
+    (s.bezKodu&&!s.kand?"":"")+
+    (s.bezKodu?"<div class='hint'>Řádky bez určené obce nejspíš znamenají, že v souboru je jen jedna obec bez vlastního sloupce – vyber ji nahoře v <b>Celý soubor patří obci</b>.</div>":"")+
     (chybi.length?"<div class='zamwarn'>Bez kandidátky zůstalo <b>"+chybi.length+"</b> "+pl(chybi.length,"obec","obce","obcí")+": "+
       esc(chybi.slice(0,25).map(function(o){return o.nazev;}).join(", "))+(chybi.length>25?" a další…":"")+
       "<br>Buď je v souboru jen část republiky, nebo tam ty obce opravdu nejsou.</div>":"")+
-    (ZAM.length
+    (ZAM.length&&!bezJmen
       ? (hits.length
           ? "<div class='sekce'>👷 Zaměstnanci VHOS mezi kandidáty <span class='obd'>("+hits.length+")</span></div>"+
             "<div class='zampre'><ul class='zast'>"+hits.slice(0,120).map(function(h){
@@ -1711,16 +1867,16 @@ function kandPreview(){
         " / "+x.d.kand.length+" "+pl(x.d.kand.length,"kandidát","kandidáti","kandidátů")+
         " <span class='prazdne'>"+esc(x.d.strany.map(function(st){return st.nazev||("strana "+st.c);}).slice(0,4).join(" · "))+
         (x.d.strany.length>4?" …":"")+"</span></li>";}).join("")+"</ul></div>"+
-    "<div class='mtools'><button class='btn' id='kd_save'>💾 Uložit kandidátky ("+s.kand+")</button></div>";
+    "<div class='mtools'><button class='btn' id='kd_save'>💾 Uložit "+(bezJmen?"volební strany ("+s.strany+")":"kandidátky ("+s.kand+")")+"</button></div>";
   document.getElementById("kd_save").addEventListener("click",kandSave);
 }
 function kandSave(){
-  if(!_kandPre||!_kandPre.stat.kand)return;
+  if(!_kandPre||!_kandPre.stat.strany)return;
   var P=_kandPre, ts=Date.now(), upd={}, n=0;
   Object.keys(P.byKod).forEach(function(kod){
     var d=P.byKod[kod];
     upd["volby_obce/"+kod+"/strany_2026"]=d.strany;
-    upd["volby_obce/"+kod+"/kandidati_2026"]=d.kand;
+    upd["volby_obce/"+kod+"/kandidati_2026"]=d.kand.length?d.kand:null;
     upd["volby_obce/"+kod+"/pocet_kand_2026"]=d.kand.length;
     upd["volby_obce/"+kod+"/pocet_stran_2026"]=d.strany.length;
     upd["volby_obce/"+kod+"/kandidatky_zdroj"]="volby.cz – registrované kandidátní listiny 2026";
@@ -1728,7 +1884,7 @@ function kandSave(){
     upd["volby_obce/"+kod+"/kandidatky_kdo"]=_USER.email;
     n++;
   });
-  if(!window.confirm("Uložit kandidátky pro "+n+" obcí ("+P.stat.kand+" kandidátů)?\nPřepíše se tím dřív načtená kandidátka 2026, kontakty a zastupitelstvo 2022–2026 zůstanou beze změny."))return;
+  if(!window.confirm("Uložit pro "+n+" obcí "+P.stat.strany+" volebních stran"+(P.stat.kand?" a "+P.stat.kand+" kandidátů":" (bez jmen kandidátů)")+"?\nPřepíše se tím dřív načtená kandidátka 2026, kontakty a zastupitelstvo 2022–2026 zůstanou beze změny."))return;
   kandMsg("Zapisuji do Firebase…");
   FDB.ref().update(upd).then(function(){
     document.getElementById("modal").classList.remove("show");
@@ -1760,7 +1916,7 @@ function kandListHTML(o){
       (s.typ?"<span class='b'>"+esc(s.typ)+"</span>":"")+
       "<span class='kpocet'>"+kand.length+" "+pl(kand.length,"kandidát","kandidáti","kandidátů")+"</span></div>"+
       (kand.length?"<ol class='zast'>"+kand.map(function(k){
-        var dt=[k.vek?k.vek+" let":"",k.pov||"",k.ps||""].filter(Boolean).join(" · ");
+        var dt=[k.vek?k.vek+" let":"",k.pov||"",k.ps||"",k.byd?"bydliště "+k.byd:""].filter(Boolean).join(" · ");
         return "<li>"+(k.tp?"<span class='kdet'>"+esc(k.tp)+"</span> ":"")+hl(k.jmeno,_Q)+
           (k.tz?" <span class='kdet'>"+esc(k.tz)+"</span>":"")+zamTag(k.jmeno)+
           (dt?"<div class='kdet'>"+hl(dt,_Q)+"</div>":"")+"</li>";
