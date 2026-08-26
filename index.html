@@ -215,7 +215,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <button class="btn ghost small" id="kontrolaVHOS">🔎 Kontrola VHOS</button>
 <button class="btn ghost small" id="kandidatky">🗳️ Kandidátky 2026</button>
 <input type="file" id="importFile" accept=".json,application/json" multiple style="display:none" />
-<input type="file" id="kandFile" accept=".csv,.txt,.tsv,.xml,.json,.html,.htm,.xlsx,.xls" multiple style="display:none" />
+<input type="file" id="kandFile" accept=".zip,.csv,.txt,.tsv,.xml,.json,.html,.htm,.xlsx,.xls" multiple style="display:none" />
 <div class="msg" id="importMsg" style="text-align:center"></div>
 <div class="hint" style="text-align:center">Vyber datové soubory (kontakty.json / svazky.json). Doplní jen prázdná pole; ručně upravené hodnoty zůstanou beze změny. Data nejsou veřejná – jen ve Firebase za přihlášením.</div>
 </div>
@@ -1388,7 +1388,7 @@ var _kandFiles=[], _kandPre=null;
 // pole, která z kandidátky potřebujeme; ke každému názvy sloupců, jak je píše volby.cz
 var KPOLE=[
   ["kod",    "Kód obce",             ["obec","kodobec","kodobce","kodzastup","kodzast","cisobec","cobec","obeckod","kod"]],
-  ["nazobec","Obec / zastupitelstvo", ["nazevobec","nazevobce","obecnazev","nazevzastup","nazevzastupitelstva","zastupitelstvo","zastupitelstvoobce"]],
+  ["nazobec","Obec / zastupitelstvo", ["nazevobec","nazevobce","obecnazev","nazevzast","nazevzastup","nazevzastupitelstva","zastupitelstvo","zastupitelstvoobce"]],
   ["strc",   "Číslo volební strany", ["porstrhl","cislostrany","cstrana","cvs","cislovs","porcislostrany","cisstrany","cislokl"]],
   ["strn",   "Volební strana / kandidátní listina", ["nazevstrk","nazevcelk","nazevstrany","nazevvs","nazevstr","nazevkl","kandidatnilistina","volebnistrana","nazevkandidatnilistiny","nazevvolebnistrany","vyberetekandidatnilistinu","nazev"]],
   ["strt",   "Typ volební strany",   ["typstrany","typstr","typ"]],
@@ -1402,8 +1402,12 @@ var KPOLE=[
   ["pov",    "Povolání",             ["povolani","zamestnani"]],
   ["ps",     "Politická příslušnost",["pstrana","politickaprislusnost","polprislusnost","prislusnost"]],
   ["ns",     "Navrhující strana",    ["nstrana","navrhujicistrana","navrhstrana"]],
-  ["byd",    "Bydliště",             ["bydliste","obecbydliste","trvalybytem"]]
+  ["byd",    "Bydliště",             ["bydlisten","bydliste","obecbydliste","trvalybytem"]],
+  ["plat",   "Platnost kandidáta",   ["platnost","platny","stav"]]
 ];
+// obecné názvy, které smí zabrat sloupec jen při přesné shodě – jinak by si
+// "NAZEV" v číselníku vzal název volební strany a "OBEC" v "NAZEVOBCE" kód obce
+var KOBECNE={nazev:1,typ:1,kod:1,obec:1,jmeno:1,stav:1};
 function kfold(s){return fold(String(s==null?"":s)).replace(/[^a-z0-9]/g,"");}
 
 /* ---- čtení souboru: CSV/TXT (i ve windows-1250), XML, JSON, Excel ---- */
@@ -1573,37 +1577,84 @@ function kandTable(name,text,buf){
   var h=kandHlavicka(rows);
   return {hdr:h.hdr,rows:rows.slice(h.i+1),hdrRadek:h.i};
 }
-function kandReadFile(f){
-  if(/\.(xlsx|xlsm|xlsb|xls)$/i.test(f.name)){
+/* ZIP z otevřených dat rozbalíme rovnou v prohlížeči – deflate umí
+   DecompressionStream, takže není potřeba žádná knihovna. */
+function kandInflate(u8){
+  if(typeof DecompressionStream==="undefined")
+    return Promise.reject(new Error("tenhle prohlížeč neumí rozbalit ZIP – rozbal ho v počítači a nahraj soubory z něj"));
+  return new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer();
+}
+function kandUnzip(buf){
+  var dv=new DataView(buf), u8=new Uint8Array(buf), i;
+  // konec centrálního adresáře (může za ním být komentář, tak hledáme od konce)
+  var eocd=-1, dolu=Math.max(0,u8.length-66000);
+  for(i=u8.length-22;i>=dolu;i--){if(dv.getUint32(i,true)===0x06054b50){eocd=i;break;}}
+  if(eocd<0)return Promise.reject(new Error("tohle nevypadá jako ZIP"));
+  var pocet=dv.getUint16(eocd+10,true), cd=dv.getUint32(eocd+16,true);
+  if(pocet===0xffff||cd===0xffffffff)return Promise.reject(new Error("ZIP je ve formátu ZIP64 – rozbal ho v počítači a nahraj soubory z něj"));
+  var polozky=[], p=cd;
+  for(i=0;i<pocet;i++){
+    if(p+46>u8.length||dv.getUint32(p,true)!==0x02014b50)break;
+    var metoda=dv.getUint16(p+10,true), komp=dv.getUint32(p+20,true);
+    var nlen=dv.getUint16(p+28,true), elen=dv.getUint16(p+30,true), clen=dv.getUint16(p+32,true);
+    var lokal=dv.getUint32(p+42,true);
+    polozky.push({name:kandDecode(buf.slice(p+46,p+46+nlen)),metoda:metoda,komp:komp,lokal:lokal});
+    p+=46+nlen+elen+clen;
+  }
+  // z balíku nás zajímají jen datové soubory
+  polozky=polozky.filter(function(z){return /\.(csv|txt|tsv|xml|json|xlsx|xlsm|xls|html?)$/i.test(z.name)&&!/\/$/.test(z.name);});
+  if(!polozky.length)return Promise.reject(new Error("v ZIPu nejsou žádné datové soubory (csv/xml/json/xlsx)"));
+  return Promise.all(polozky.map(function(z){
+    var nl=dv.getUint16(z.lokal+26,true), el=dv.getUint16(z.lokal+28,true);
+    var od=z.lokal+30+nl+el, data=buf.slice(od,od+z.komp);
+    if(z.metoda===0)return Promise.resolve({name:z.name,buf:data});
+    if(z.metoda!==8)return Promise.resolve(null);         // jiná komprese – přeskočit
+    return kandInflate(new Uint8Array(data)).then(function(rozb){return {name:z.name,buf:rozb};},function(){return null;});
+  })).then(function(list){
+    var ok=list.filter(Boolean);
+    if(!ok.length)throw new Error("obsah ZIPu se nepodařilo rozbalit");
+    return ok;
+  });
+}
+// jeden soubor (z disku i ze ZIPu) -> tabulka
+function kandFromBuffer(name,buf){
+  if(/\.(xlsx|xlsm|xlsb|xls)$/i.test(name)){
     return loadXLSX().then(function(){
-      return new Promise(function(res,rej){
-        var fr=new FileReader();
-        fr.onload=function(){
-          try{
-            var wb=XLSX.read(new Uint8Array(fr.result),{type:"array"});
-            var ws=wb.Sheets[wb.SheetNames[0]];
-            var rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:""})
-              .filter(function(r){return r.join("").trim()!=="";});
-            if(!rows.length)return rej(new Error(f.name+": list je prázdný"));
-            var h=kandHlavicka(rows);
-            res({name:f.name,hdr:h.hdr,rows:rows.slice(h.i+1)});
-          }catch(e){rej(new Error(f.name+": "+(e&&e.message?e.message:e)));}
-        };
-        fr.onerror=function(){rej(new Error(f.name+": soubor se nepodařilo otevřít"));};
-        fr.readAsArrayBuffer(f);
-      });
+      var wb=XLSX.read(new Uint8Array(buf),{type:"array"});
+      if(!wb.SheetNames.length)throw new Error(name+": sešit nemá žádný list");
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:""})
+        .filter(function(r){return r.join("").trim()!=="";});
+      if(!rows.length)throw new Error(name+": list je prázdný");
+      var h=kandHlavicka(rows);
+      return {name:name,hdr:h.hdr,rows:rows.slice(h.i+1)};
     });
   }
+  var r=kandTable(name,kandDecode(buf));
+  return Promise.resolve({name:name,hdr:r.hdr,rows:r.rows});
+}
+function kandReadFile(f){
   return new Promise(function(res,rej){
     var fr=new FileReader();
-    fr.onload=function(){
-      try{
-        var t=kandDecode(fr.result), r=kandTable(f.name,t,fr.result);
-        res({name:f.name,hdr:r.hdr,rows:r.rows});
-      }catch(e){rej(new Error(f.name+": "+(e&&e.message?e.message:e)));}
-    };
+    fr.onload=function(){res(fr.result);};
     fr.onerror=function(){rej(new Error(f.name+": soubor se nepodařilo otevřít"));};
     fr.readAsArrayBuffer(f);
+  }).then(function(buf){
+    if(/\.zip$/i.test(f.name)){
+      return kandUnzip(buf).then(function(list){
+        return Promise.all(list.map(function(e){
+          return kandFromBuffer(e.name,e.buf).then(null,function(){return null;});  // nečitelný soubor v balíku přeskoč
+        })).then(function(t){
+          var ok=t.filter(Boolean);
+          if(!ok.length)throw new Error("ze ZIPu se nepodařilo přečíst žádnou tabulku");
+          return ok;
+        });
+      });
+    }
+    return kandFromBuffer(f.name,buf).then(function(x){return [x];});
+  }).then(null,function(e){
+    var m=(e&&e.message)?e.message:String(e);
+    throw new Error(m.indexOf(f.name)===0?m:(f.name+": "+m));
   });
 }
 
@@ -1632,16 +1683,22 @@ function kandAutoMap(hdr){
     for(var i=0;i<fh.length;i++){
       if(used[i]||!fh[i])continue;
       for(var a=0;a<p[2].length;a++){
+        if(KOBECNE[p[2][a]])continue;
         if(p[2][a].length>3&&fh[i].indexOf(p[2][a])>=0){map[p[0]]=i;used[i]=1;return;}
       }
     }
   });
   return map;
 }
-function kandKind(map,obecFix){
+function kandKind(map,obecFix,hdr){
   var jm=(map.prij!=null||map.jm!=null)||map.cele!=null;
   if(map.kod==null&&map.nazobec==null&&!obecFix)return "nic";
-  return jm?"kand":((map.strn!=null||map.strc!=null)?"strany":"nic");
+  if(jm)return "kand";
+  // Bez jmen musí být z názvu sloupce poznat volební strana – jinak by se jako
+  // kandidátka tvářil kdejaký číselník, kde je jen kód obce a sloupec NAZEV.
+  if(map.strc!=null&&map.strn!=null)return "strany";
+  if(map.strn!=null&&map.strn!==map.nazobec&&hdr&&!/^nazev$/.test(kfold(hdr[map.strn])))return "strany";
+  return "nic";
 }
 
 /* ---- složení kandidátek po obcích ---- */
@@ -1658,18 +1715,23 @@ function kandObecIndex(){
   OBCE.forEach(function(o){
     _OBECIDX.kod[String(o.kod)]=o;
     var n=fold(o.nazev).trim();
-    if(!_OBECIDX.nazev[n])_OBECIDX.nazev[n]=o;
+    // stejný název u dvou našich obcí = podle názvu nelze rozhodnout
+    _OBECIDX.nazev[n]=(_OBECIDX.nazev[n]===undefined)?o:null;
   });
   return _OBECIDX;
 }
+/* Kód obce je jednoznačný, takže rozhoduje on: když v řádku je a není náš,
+   jde o jinou obec – nikdy nedohledávat podle názvu. Stejných názvů je v ČR
+   spousta (Horní Újezd je trojmo) a jinak by se cizí kandidátky slily s našimi.
+   Podle názvu se páruje jen tam, kde kód vůbec není (export z tabulky). */
 function kandNajdiObec(kodBunka,nazevBunka){
   var ix=_OBECIDX||kandObecIndex();
   var kod=String(kodBunka||"").replace(/\D/g,"");
-  if(kod&&ix.kod[kod])return ix.kod[kod];
+  if(kod)return ix.kod[kod]||null;
   var nz=String(nazevBunka||"").trim();
   if(!nz)return null;
   var vKod=nz.match(/\((\d{5,6})\)/);            // "Březiny (577898)"
-  if(vKod&&ix.kod[vKod[1]])return ix.kod[vKod[1]];
+  if(vKod)return ix.kod[vKod[1]]||null;
   var jen=fold(nz.replace(/\s*\(.*\)\s*/,"")).trim();
   return ix.nazev[jen]||null;
 }
@@ -1705,13 +1767,19 @@ function kandBuild(){
       // číslo strany bývá i uvnitř názvu: "1 – Sdružení nezávislých kandidátů"
       var rz=kandStranaRozdel(g(r,"strn"));
       var s=strana(kod,kandCislo(g(r,"strc"))||rz.c,rz.nazev,g(r,"strt"));
+      if(/^(n|0|ne)$/i.test(g(r,"plat")))return;    // vyškrtnutý / neplatný kandidát
       var jm=kandJmeno(g,r);
       if(!jm)return;                                // řádek jen o volební straně
       var k={p:kandCislo(g(r,"por")),jmeno:jm};
       var tp=g(r,"tp"),tz=g(r,"tz"),vek=g(r,"vek"),pov=g(r,"pov"),ps=g(r,"ps"),ns=g(r,"ns"),byd=g(r,"byd");
       if(tp)k.tp=tp; if(tz)k.tz=tz;
       if(kandCislo(vek))k.vek=kandCislo(vek);
-      if(pov)k.pov=pov; if(ps)k.ps=ps; if(ns)k.ns=ns; if(byd)k.byd=byd;
+      if(pov)k.pov=pov;
+      // PSTRANA / NSTRANA jsou v otevřených datech číselníkové kódy (99 = bez
+      // politické příslušnosti) – bez číselníku nic neříkají, tak je neukládáme
+      if(ps&&!/^\d+$/.test(ps))k.ps=ps;
+      if(ns&&!/^\d+$/.test(ns))k.ns=ns;
+      if(byd)k.byd=byd;
       var dk=k.p+"|"+kfold(jm);
       if(s.vid[dk]){stat.dup++;return;}
       s.vid[dk]=1;s.kand.push(k);stat.kand++;
@@ -1722,6 +1790,7 @@ function kandBuild(){
   Object.keys(by).forEach(function(kod){
     var b=by[kod];
     var strany=b.poradi.map(function(k){return b.strany[k];})
+      .filter(function(st){return st.c||st.kand.length;})
       .sort(function(a,c){return (a.c||99)-(c.c||99)||(a.nazev||"").localeCompare(c.nazev||"","cs");});
     var flat=[];
     strany.forEach(function(s){
@@ -1756,8 +1825,9 @@ function kandOpen(){
       : "Kandidátky zatím nejsou načtené.")+"</div>"+
     "<div class='hint' style='margin-top:10px'><b>Odkud vzít data za celý okres naráz:</b> "+
     "<a href='https://volby.gov.cz/opendata/opendata.htm' target='_blank' rel='noopener'>volby.gov.cz/opendata</a> → "+
-    "volby do zastupitelstev obcí 2026 → registrované kandidátní listiny. Tam je jeden soubor za celou ČR "+
-    "a okres Svitavy si z něj apka vybere sama podle našich obcí.</div>"+
+    "volby do zastupitelstev obcí 2026 → <b>Registry – zip balíky</b> → <b>CSV (CSVW)</b> (nebo Excel, XML, JSON – je to jedno). "+
+    "Stažený <b>.zip</b> nahraj sem rovnou, apka si ho rozbalí, najde v něm kandidáty a volební strany, zbytek balíku "+
+    "(číselníky, popisy) přeskočí a okres Svitavy vybere podle našich obcí.</div>"+
     "<div class='hint'>Tabulka <i>Jmenné seznamy a přehledy</i> na to není – bez vybraného zastupitelstva data nezobrazí, "+
     "takže by se stahovalo po jedné obci. Když přesto vyexportuješ jednotlivé obce, vyber sem klidně všechny soubory naráz.</div>"+
     "<div class='hint'>Apka zvládne <b>CSV</b> (i ve windows-1250), <b>XLSX</b>, <b>XML</b>, <b>JSON</b> i uloženou <b>HTML</b> stránku s tabulkou, "+
@@ -1786,7 +1856,7 @@ function kandOpen(){
     if(!t){kandMsg("Nejdřív vlož tabulku do pole.");return;}
     try{
       var tb=kandTable("vlozeno.txt",t), m=kandAutoMap(tb.hdr);
-      _kandFiles=[{name:"vložená tabulka",hdr:tb.hdr,rows:tb.rows,map:m,obec:null,kind:kandKind(m,null)}];
+      _kandFiles=[{name:"vložená tabulka",hdr:tb.hdr,rows:tb.rows,map:m,obec:null,kind:kandKind(m,null,t.hdr)}];
       kandMsg("");kandRender();
     }catch(e){kandMsg("⚠️ "+esc(e&&e.message?e.message:String(e)));}
   });
@@ -1806,7 +1876,7 @@ function kandFetchUrl(){
     var jm=url.split("?")[0].split("/").pop()||"data";
     var tb=kandTable(jm,t);
     _kandFiles=[{name:jm,hdr:tb.hdr,rows:tb.rows,map:kandAutoMap(tb.hdr),obec:null,kind:""}];
-    _kandFiles[0].kind=kandKind(_kandFiles[0].map,null);
+    _kandFiles[0].kind=kandKind(_kandFiles[0].map,null,_kandFiles[0].hdr);
     kandMsg("");
     kandRender();
   }).catch(function(e){
@@ -1819,10 +1889,15 @@ function kandFetchUrl(){
 function onKandFile(ev){
   var files=Array.prototype.slice.call(ev.target.files||[]);ev.target.value="";
   if(!files.length)return;
-  kandMsg("Načítám "+files.length+" "+pl(files.length,"soubor","soubory","souborů")+"…");
+  var velky=files.some(function(f){return f.size>3000000;});
+  kandMsg("Načítám "+files.length+" "+pl(files.length,"soubor","soubory","souborů")+"…"+
+    (velky?"<br>Je to velký balík – čtení Excelu trvá i půl minuty a stránka mezitím nereaguje. Nech ji být, dojede to.":""));
   Promise.all(files.map(kandReadFile)).then(function(list){
-    _kandFiles=list.map(function(F){F.map=kandAutoMap(F.hdr);F.kind=kandKind(F.map,F.obec);return F;});
-    kandMsg("");
+    var vse=[];list.forEach(function(a){vse=vse.concat(a);});
+    _kandFiles=vse.map(function(F){F.map=kandAutoMap(F.hdr);F.obec=null;F.kind=kandKind(F.map,null,F.hdr);return F;});
+    kandMsg(_kandFiles.length>files.length
+      ? "Z balíku přečteno "+_kandFiles.length+" "+pl(_kandFiles.length,"soubor","soubory","souborů")+"."
+      : "");
     kandRender();
   }).catch(function(e){kandMsg("⚠️ "+esc(e&&e.message?e.message:String(e)));});
 }
@@ -1846,7 +1921,7 @@ function kandRender(){
       "</select></label></div>"+
       "<div class='hint'>Vyplň, jen když je v souboru jedna jediná obec a nemá vlastní sloupec (export za jednu kandidátku).</div>"+
       "<div class='kmap'>"+KPOLE.map(function(p){return kandSelect(fi,p[0],F.hdr,F.map[p[0]]==null?-1:F.map[p[0]]);}).join("")+"</div>",
-      F.kind==="nic");
+      F.kind==="nic"&&!_kandFiles.some(function(x){return x.kind!=="nic";}));
   });
   box.innerHTML=html+"<div id='kd_prev'></div>";
   Array.prototype.forEach.call(box.querySelectorAll(".kmap select"),function(s){
@@ -1857,7 +1932,7 @@ function kandRender(){
         var v=+s.value;
         if(v<0)delete F.map[s.getAttribute("data-p")];else F.map[s.getAttribute("data-p")]=v;
       }
-      F.kind=kandKind(F.map,F.obec);
+      F.kind=kandKind(F.map,F.obec,F.hdr);
       kandPreview();
     });
   });
