@@ -903,6 +903,11 @@ document.getElementById("tabMap").addEventListener("click",function(){showView("
 /* Seznam se ukládá do Firebase (uzel volby_zamestnanci) – nikdy do repozitáře.
    Datum narození ani jiná citlivá pole se z importu zahazují (viz parseZam). */
 var ZAM=[], ZAMKEY={}, ZAMSUR={}, ZAMHITS={jista:[],mozna:[]}, ZAMBYKOD={}, _zamErr="", _zamPre=null;
+/* Kontrola VHOS standardně ukazuje jen shody jména i příjmení. Shod jen na
+   příjmení jsou po načtení kandidátek tisíce a k ničemu nevedou – jsou schované
+   pod přepínačem. */
+var _zamJen="jista";
+try{if(localStorage.getItem("volby_zam_jen")==="vse")_zamJen="vse";}catch(e){}
 var TITUL=/^(ing|mgr|bc|bca|mga|ma|msc|mba|mudr|mvdr|judr|rndr|phdr|paeddr|pharmdr|thdr|thlic|doc|prof|dis|ph|d|csc|drsc|lic|akad|arch|et|dr)$/;
 var RCRE=/^\d{6}\s*\/?\s*\d{3,4}$/;                               // rodné číslo
 
@@ -1329,11 +1334,15 @@ function renderZamView(){
   var g=document.getElementById("zamgrid"),p=document.getElementById("zampocet");
   g.innerHTML="";
   var osob={};ZAMHITS.jista.forEach(function(h){osob[h.emp.id]=1;});
-  var nO=Object.keys(osob).length, nNew=ZAMHITS.neposouzene||0;
+  var nO=Object.keys(osob).length;
+  var nNew=(_zamJen==="vse"?ZAMHITS.jista.concat(ZAMHITS.mozna):ZAMHITS.jista)
+    .filter(function(h){return !h.verd;}).length;
   p.innerHTML=(ZAM.length?
       "Porovnáno se seznamem <b>"+ZAM.length+"</b> "+pl(ZAM.length,"zaměstnance","zaměstnanců","zaměstnanců")+
-      " · <b>"+nNew+"</b> "+pl(nNew,"shoda k posouzení","shody k posouzení","shod k posouzení")
+      " · <b>"+nNew+"</b> "+pl(nNew,"shoda k posouzení","shody k posouzení","shod k posouzení")+
+      (_zamJen==="jista"?" <span class='prazdne'>(jen jméno i příjmení)</span>":"")
       :"Seznam zaměstnanců zatím není nahraný.")+
+    (ZAM.length?"<div class='chips' id='zamFil'></div>":"")+
     "<div class='zambar'>"+
     "<button class='btn ghost small' id='zamPaste'>"+(ZAM.length?"✏️ Upravit seznam":"📋 Vložit seznam")+"</button>"+
     "<button class='btn ghost small' id='zamImp'>⬆️ Načíst z Excelu / souboru</button>"+
@@ -1352,19 +1361,37 @@ function renderZamView(){
       "<p class='hint'>🔒 Data narození se z importu automaticky zahazují. Seznam je jen ve Firebase za přihlášením.</p></div>";
     return;
   }
+  // přepínač jistá / i jen příjmení
+  var fil=document.getElementById("zamFil");
+  if(fil){
+    var nJ=ZAMHITS.jista.length, nM=ZAMHITS.mozna.length;
+    [["jista","Jméno i příjmení ("+nJ+")"],["vse","I jen příjmení (+"+nM+")"]].forEach(function(o){
+      var c=document.createElement("div");c.className="chip zam"+(_zamJen===o[0]?" on":"");c.textContent=o[1];
+      c.addEventListener("click",function(){
+        _zamJen=o[0];try{localStorage.setItem("volby_zam_jen",o[0]);}catch(e){}
+        renderZamView();
+      });
+      fil.appendChild(c);
+    });
+  }
+  var vidime=(_zamJen==="vse")?ZAMHITS.jista.concat(ZAMHITS.mozna):ZAMHITS.jista.slice();
   var nove=[],hotovo=[];
-  ZAMHITS.jista.concat(ZAMHITS.mozna).forEach(function(h){(h.verd?hotovo:nove).push(h);});
+  vidime.forEach(function(h){(h.verd?hotovo:nove).push(h);});
   // k posouzení: nejdřív jisté shody, pak jen-příjmení
   nove.sort(function(a,b){return (a.typ===b.typ?0:(a.typ==="jista"?-1:1));});
   if(!nove.length&&!hotovo.length){
-    g.innerHTML="<div class='zamnone'><div style='font-size:2.2rem'>✅</div><h3>Žádná shoda</h3>"+
-      "<p>Nikdo ze seznamu zaměstnanců není v současných zastupitelstvech, radách ani orgánech svazků.</p></div>";
+    g.innerHTML="<div class='zamnone'><div style='font-size:2.2rem'>✅</div><h3>Žádná shoda jména a příjmení</h3>"+
+      "<p>Nikdo ze seznamu zaměstnanců není mezi starosty, radami, zastupitelstvy, orgány svazků ani na kandidátkách 2026.</p>"+
+      (ZAMHITS.mozna.length?"<p class='hint'>K tomu je "+ZAMHITS.mozna.length+" "+pl(ZAMHITS.mozna.length,"shoda","shody","shod")+
+        " jen na příjmení – přepni nahoře na <b>I jen příjmení</b>.</p>":"")+"</div>";
     return;
   }
   function sekce(cls,html){var h=document.createElement("div");h.className="zamsub"+(cls||"");h.innerHTML=html;g.appendChild(h);}
   if(nove.length){
     var nj=nove.filter(function(h){return h.typ==="jista";}).length;
-    sekce("","🔎 K posouzení <span class='cnt'>("+nove.length+" · z toho "+nj+" "+pl(nj,"shoda jméno i příjmení","shody jméno i příjmení","shod jméno i příjmení")+")</span>");
+    sekce("","🔎 K posouzení <span class='cnt'>("+(_zamJen==="jista"
+      ? nove.length+" "+pl(nove.length,"shoda jména a příjmení","shody jména a příjmení","shod jména a příjmení")
+      : nove.length+" · z toho "+nj+" "+pl(nj,"shoda jméno i příjmení","shody jméno i příjmení","shod jméno i příjmení"))+")</span>");
     nove.forEach(function(h){g.appendChild(zamCard(h));});
   }else{
     sekce("","✅ Vše posouzeno <span class='cnt'>(žádná nová shoda)</span>");
@@ -2155,7 +2182,7 @@ document.getElementById("kontrolaVHOS").addEventListener("click",function(){show
 document.getElementById("kandidatky").addEventListener("click",kandOpen);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-26 · v32 (kandidátky 2026 – import balíku z volby.gov.cz, kontrola VHOS i na kandidátech)";
+var VERZE="2026-08-26 · v33 (Kontrola VHOS: standardně jen shody jména i příjmení)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
