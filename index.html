@@ -215,7 +215,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <button class="btn ghost small" id="kontrolaVHOS">🔎 Kontrola VHOS</button>
 <button class="btn ghost small" id="kandidatky">🗳️ Kandidátky 2026</button>
 <input type="file" id="importFile" accept=".json,application/json" multiple style="display:none" />
-<input type="file" id="kandFile" accept=".csv,.txt,.tsv,.xml,.json,.xlsx,.xls" multiple style="display:none" />
+<input type="file" id="kandFile" accept=".csv,.txt,.tsv,.xml,.json,.html,.htm,.xlsx,.xls" multiple style="display:none" />
 <div class="msg" id="importMsg" style="text-align:center"></div>
 <div class="hint" style="text-align:center">Vyber datové soubory (kontakty.json / svazky.json). Doplní jen prázdná pole; ručně upravené hodnoty zůstanou beze změny. Data nejsou veřejná – jen ve Firebase za přihlášením.</div>
 </div>
@@ -1511,6 +1511,44 @@ function kandFlatJSON(j){
   return {hdr:keys,rows:objs.map(function(o){return keys.map(function(k){return o[k]==null?"":o[k];});})};
 }
 function kandJSON(text){return kandFlatJSON(JSON.parse(text));}
+// Uložená stránka nebo zkopírovaná tabulka: vezmeme tu tabulku, která má nejvíc řádků.
+function kandHTML(text){
+  var doc=new DOMParser().parseFromString(text,"text/html");
+  var tabs=doc.getElementsByTagName("table"), nej=null, nejN=0;
+  for(var i=0;i<tabs.length;i++){
+    var n=tabs[i].getElementsByTagName("tr").length;
+    if(n>nejN){nejN=n;nej=tabs[i];}
+  }
+  if(!nej)throw new Error("ve stránce není žádná tabulka");
+  // Sloučené buňky (colspan/rowspan) rozpustíme do mřížky, jinak by se sloupce
+  // v hlavičce a v datech rozjely. Buňka přes víc řádků se text zopakuje dolů,
+  // buňka přes víc sloupců vyplní zbytek prázdnem.
+  var mrizka=[], tr=nej.getElementsByTagName("tr"), r, c, i, j;
+  for(r=0;r<tr.length;r++){
+    var bunky=tr[r].querySelectorAll("th,td"), sl=0;
+    if(!mrizka[r])mrizka[r]=[];
+    for(c=0;c<bunky.length;c++){
+      while(mrizka[r][sl]!==undefined)sl++;
+      var txt=String(bunky[c].textContent||"").replace(/\s+/g," ").trim();
+      var cs=parseInt(bunky[c].getAttribute("colspan")||"1",10)||1;
+      var rs=parseInt(bunky[c].getAttribute("rowspan")||"1",10)||1;
+      for(i=0;i<rs;i++){
+        if(!mrizka[r+i])mrizka[r+i]=[];
+        for(j=0;j<cs;j++)mrizka[r+i][sl+j]=(j===0)?txt:"";
+      }
+      sl+=cs;
+    }
+  }
+  var rows=[];
+  mrizka.forEach(function(radek){
+    var out=[];
+    for(var x=0;x<radek.length;x++)out.push(radek[x]===undefined?"":radek[x]);
+    if(out.join("").trim()!=="")rows.push(out);
+  });
+  if(rows.length<2)throw new Error("tabulka je prázdná");
+  var h=kandHlavicka(rows);
+  return {hdr:h.hdr,rows:rows.slice(h.i+1),hdrRadek:h.i};
+}
 // Export z volby.gov.cz má nad tabulkou nadpis, počet záznamů a dvouřádkovou
 // hlavičku – za hlavičku vezmeme ten z prvních řádků, ze kterého se dá přečíst
 // nejvíc sloupců.
@@ -1522,11 +1560,12 @@ function kandHlavicka(rows){
     if(hdr.filter(function(x){return x!=="";}).length<2)continue;
     var m=kandAutoMap(hdr), sk=0;
     for(var f in m)if(Object.prototype.hasOwnProperty.call(m,f))sk++;
-    if(sk>best.skore)best={i:i,skore:sk,hdr:hdr,map:m};
+    if(sk>=best.skore&&sk>0)best={i:i,skore:sk,hdr:hdr,map:m};
   }
   return best;
 }
 function kandTable(name,text,buf){
+  if(/\.html?$/i.test(name)||/<table[\s>]|<!doctype\s+html/i.test(text.slice(0,4000)))return kandHTML(text);
   if(/\.xml$/i.test(name)||/^\s*<\?xml|^\s*<[A-Za-z]/.test(text.slice(0,200)))return kandXML(text);
   if(/\.json$/i.test(name)||/^\s*[\[{]/.test(text.slice(0,50)))return kandJSON(text);
   var rows=kandCSV(text,kandDelim(text));
@@ -1715,13 +1754,15 @@ function kandOpen(){
       ? "Načteno u <b>"+st.obci+"</b> "+pl(st.obci,"obce","obcí","obcí")+" · <b>"+st.strany+"</b> "+pl(st.strany,"volební strana","volební strany","volebních stran")+
         (st.kand?" · <b>"+st.kand+"</b> "+pl(st.kand,"kandidát","kandidáti","kandidátů"):" · zatím bez jmen kandidátů")
       : "Kandidátky zatím nejsou načtené.")+"</div>"+
-    "<div class='hint' style='margin-top:10px'><b>Jak na to na volby.gov.cz</b> (Jmenné seznamy a přehledy): "+
-    "nech filtr <b>Kraj: Pardubický</b> a <b>Okres: Svitavy</b> a ostatní filtry <b>zruš</b> – hlavně "+
-    "<i>Zastupitelstvo</i> a <i>Vyberte kandidátní listinu</i>. V tabulce pak jsou všichni kandidáti okresu naráz "+
-    "a stačí jedno kliknutí na ikonu stažení (⤓) vpravo nad tabulkou. Kandidátky se nestahují po jedné.</div>"+
-    "<div class='hint'>Ten jeden soubor nahraj sem. Apka zvládne <b>CSV</b> (i ve windows-1250), <b>XLSX</b>, <b>XML</b> i <b>JSON</b>, "+
+    "<div class='hint' style='margin-top:10px'><b>Odkud vzít data za celý okres naráz:</b> "+
+    "<a href='https://volby.gov.cz/opendata/opendata.htm' target='_blank' rel='noopener'>volby.gov.cz/opendata</a> → "+
+    "volby do zastupitelstev obcí 2026 → registrované kandidátní listiny. Tam je jeden soubor za celou ČR "+
+    "a okres Svitavy si z něj apka vybere sama podle našich obcí.</div>"+
+    "<div class='hint'>Tabulka <i>Jmenné seznamy a přehledy</i> na to není – bez vybraného zastupitelstva data nezobrazí, "+
+    "takže by se stahovalo po jedné obci. Když přesto vyexportuješ jednotlivé obce, vyber sem klidně všechny soubory naráz.</div>"+
+    "<div class='hint'>Apka zvládne <b>CSV</b> (i ve windows-1250), <b>XLSX</b>, <b>XML</b>, <b>JSON</b> i uloženou <b>HTML</b> stránku s tabulkou, "+
     "poradí si s nadpisem a dvouřádkovou hlavičkou nad tabulkou i se jménem v jednom sloupci (<i>Dudek Tomáš Ing.</i>) "+
-    "a obec pozná podle kódu i podle názvu. Kdyby přece jen vznikly soubory po obcích, vyber je všechny naráz.</div>"+
+    "a obec pozná podle kódu i podle názvu.</div>"+
     "<div class='zamwarn'>Soubor se nikam neposílá – přečte se v prohlížeči a uloží se jen to, co patří našim obcím, do Firebase za přihlášením.</div>"+
     "<div class='r' style='display:block;margin-top:10px'><b>Nebo rovnou z adresy</b>"+
     "<div style='display:flex;gap:8px;flex-wrap:wrap;margin-top:6px'>"+
@@ -1729,12 +1770,26 @@ function kandOpen(){
     "<button class='btn ghost' id='kd_get'>🌐 Stáhnout</button></div></div>"+
     "<div class='hint'>Stahuje tvůj prohlížeč, ne server – takže to projde jen u adres, které stahování z cizí stránky povolují. "+
     "Když prohlížeč odmítne, ulož si soubor na disk a nahraj ho tlačítkem níž.</div>"+
+    "<details class='sek2' style='margin-top:10px'><summary><span>📋 Nebo vložit tabulku ze schránky</span><span class='chev'>▾</span></summary>"+
+    "<div class='sbody'><div class='hint' style='margin-top:6px'>Na stránce označ tabulku (i s hlavičkou), Ctrl+C a vlož sem. "+
+    "Hodí se, když jde jen o pár obcí – na celý okres je lepší jeden soubor z otevřených dat.</div>"+
+    "<div class='r' style='display:block'><textarea id='kd_paste' rows='6' placeholder='poř. číslo	příjmení, jméno, tituly	věk	…'></textarea></div>"+
+    "<div class='mtools'><button class='btn ghost' id='kd_pastego'>Načíst vložený text</button></div></div></details>"+
     "<div class='mtools'><button class='btn' id='kd_file'>⬆️ Vybrat soubor s kandidátkami</button>"+
     (st.obci?"<button class='btn ghost' id='kd_del'>🗑 Smazat načtené kandidátky</button>":"")+
     "<button class='btn ghost' id='kd_back'>← Zpět</button></div>"+
     "<div id='kd_body'></div><div class='msg' id='mmsg'></div>";
   document.getElementById("kd_file").addEventListener("click",function(){document.getElementById("kandFile").click();});
   document.getElementById("kd_get").addEventListener("click",kandFetchUrl);
+  document.getElementById("kd_pastego").addEventListener("click",function(){
+    var t=(document.getElementById("kd_paste").value||"").trim();
+    if(!t){kandMsg("Nejdřív vlož tabulku do pole.");return;}
+    try{
+      var tb=kandTable("vlozeno.txt",t), m=kandAutoMap(tb.hdr);
+      _kandFiles=[{name:"vložená tabulka",hdr:tb.hdr,rows:tb.rows,map:m,obec:null,kind:kandKind(m,null)}];
+      kandMsg("");kandRender();
+    }catch(e){kandMsg("⚠️ "+esc(e&&e.message?e.message:String(e)));}
+  });
   document.getElementById("kd_url").addEventListener("keydown",function(e){if(e.key==="Enter")kandFetchUrl();});
   document.getElementById("kd_back").addEventListener("click",function(){document.getElementById("modal").classList.remove("show");});
   var d=document.getElementById("kd_del");if(d)d.addEventListener("click",kandClear);
