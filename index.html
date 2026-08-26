@@ -675,7 +675,16 @@ function icsFromEl(el){
   a.href=url;a.download=(sum||"udalost").replace(/[^\wěščřžýáíéúůóťďňĚŠČŘŽÝÁÍÉÚŮÓ\-]+/g,"_")+".ics";
   document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(url);},3000);
 }
-function openModal(o){_CUR=o;_EDIT=false;_Q=fold(document.getElementById("q").value.trim());renderModal();document.getElementById("modal").classList.add("show");}
+var _OPENKAND=false;
+// zvyraznit = jméno, na které se má detail rovnou nascrollovat (z Kontroly VHOS)
+function openModal(o,zvyraznit){
+  _CUR=o;_EDIT=false;
+  _Q=fold(zvyraznit||document.getElementById("q").value.trim());
+  _OPENKAND=!!zvyraznit;
+  renderModal();
+  document.getElementById("modal").classList.add("show");
+  _OPENKAND=false;
+}
 function renderModal(){
   var o=_CUR;var z22=o.zastupitelstvo||[], z26=o.zastupitelstvo_2026||[];
   var head="<h2>"+hl(o.nazev,_Q)+"</h2><div class='mbadges'>"+badgesHTML(o)+"</div>";
@@ -705,7 +714,7 @@ function renderModal(){
     var k26=o.kandidati_2026||[], s26=o.strany_2026||[];
     if(k26.length||s26.length) body+="<div class='sekce'>Volby 2026 <span class='obd'>· období 2026–2030</span></div>"+
       det("Kandidátky ("+(function(){var n=s26.length||o.pocet_stran_2026||0;
-        return (n?n+" "+pl(n,"strana","strany","stran"):"")+(k26.length?(n?" / ":"")+k26.length+" "+pl(k26.length,"kandidát","kandidáti","kandidátů"):"");})()+")","",kandListHTML(o),false);
+        return (n?n+" "+pl(n,"strana","strany","stran"):"")+(k26.length?(n?" / ":"")+k26.length+" "+pl(k26.length,"kandidát","kandidáti","kandidátů"):"");})()+")","",kandListHTML(o),_OPENKAND);
     if(o.rada&&o.rada.length) body+=det("Městská rada ("+o.rada.length+")","",listUL(o.rada),false);
     if(o.terminy&&o.terminy.length) body+=det("Termíny zastupitelstev","",listCal(o.terminy,"Zastupitelstvo "+o.nazev,o.nazev),false);
     body+=det("Poznámky",secPencil("poznamky"),(o.poznamky?"<div class='r'><span class='pozn'>"+hl(o.poznamky,_Q)+"</span></div>":"<span class='prazdne'>— žádné (ťukni ✏️) —</span>"),false);
@@ -728,7 +737,10 @@ function renderModal(){
   document.getElementById("mbody").innerHTML=body;
   Array.prototype.forEach.call(document.querySelectorAll("#mbody .cal"),function(el){el.addEventListener("click",function(e){e.stopPropagation();icsFromEl(el);});});
   Array.prototype.forEach.call(document.querySelectorAll("#mbody .secedit"),function(el){el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();var s=el.getAttribute("data-sec");if(s==="poznamky")openPoznEditor();else if(s==="navstevy")openNavEditor();});});
-  if(!_EDIT&&_Q){var mk=document.querySelector("#mbody mark");if(mk){try{mk.scrollIntoView({block:"center"});}catch(e){}}}
+  if(!_EDIT&&_Q){
+    var mk=document.querySelector("#mbody details[open] mark")||document.querySelector("#mbody mark");
+    if(mk){try{mk.scrollIntoView({block:"center"});}catch(e){}}
+  }
   if(_EDIT){
     document.getElementById("saveBtn").addEventListener("click",saveEdit);
     document.getElementById("cancelBtn").addEventListener("click",function(){_EDIT=false;renderModal();});
@@ -953,8 +965,26 @@ function obecSlots(o){
   if(o.ucetni)s.push(["účetní",o.ucetni]);
   (o.rada||[]).forEach(function(x){s.push(["radní",x]);});
   (o.zastupitelstvo||[]).forEach(function(x){s.push(["zastupitel",x]);});
-  (o.kandidati_2026||[]).forEach(function(x){s.push(["kandidát 2026",x]);});
+  if((o.strany_2026||[]).length){
+    o.strany_2026.forEach(function(st){
+      (st.kand||[]).forEach(function(k){s.push([kandRole(st,k),k.jmeno]);});
+    });
+  }else{
+    (o.kandidati_2026||[]).forEach(function(x){s.push(["kandidát 2026",x]);});
+  }
   return s;
+}
+// popis místa na kandidátce: "kandidát 2026 – 3. na listině č. 1 Naše obec"
+function kandRole(st,k){
+  var kde=[];
+  if(k&&k.p)kde.push(k.p+". na listině");
+  if(st&&st.c)kde.push((kde.length?"":"listina ")+"č. "+st.c);
+  if(st&&st.nazev)kde.push(st.nazev);
+  return "kandidát 2026"+(kde.length?" – "+kde.join(" "):"");
+}
+function roleRank(r){
+  if(ROLERANK[r]!=null)return ROLERANK[r];
+  return /^kandid/.test(r)?5:9;
 }
 function svazekSlots(s){
   var a=[];
@@ -978,7 +1008,7 @@ function collectHits(slots,ctx){
     });
   });
   return Object.keys(by).map(function(k){
-    var h=by[k];h.roles.sort(function(a,b){return (ROLERANK[a]==null?9:ROLERANK[a])-(ROLERANK[b]==null?9:ROLERANK[b]);});return h;
+    var h=by[k];h.roles.sort(function(a,b){return roleRank(a)-roleRank(b);});return h;
   });
 }
 function vKeyOf(h){return String(h.kod||h.svid||"x")+"__"+nameKey(h.name).replace(/ /g,"_");}
@@ -1322,7 +1352,7 @@ function zamCard(h){
       var v=b.getAttribute("data-v");
       if(v==="detail"){
         if(h.sv){var s=SVAZKY.filter(function(x){return x.id===h.svid;})[0];if(s)openSvazek(s);}
-        else{var o=obecByKod(h.kod);if(o)openModal(o);}
+        else{var o=obecByKod(h.kod);if(o)openModal(o,hitName(h));}
         return;
       }
       setVerdikt(h,v==="zpet"?null:v);
@@ -1987,7 +2017,9 @@ function kandPreview(){
   if(ZAM.length){
     Object.keys(P.byKod).forEach(function(kod){
       var o=ourKod[kod];
-      hits=hits.concat(collectHits(P.byKod[kod].kand.map(function(n){return ["kandidát 2026",n];}),{kod:kod,nazev:o.nazev}));
+      var sloty=[];
+      P.byKod[kod].strany.forEach(function(st){(st.kand||[]).forEach(function(k){sloty.push([kandRole(st,k),k.jmeno]);});});
+      hits=hits.concat(collectHits(sloty,{kod:kod,nazev:o.nazev}));
     });
     hits=hits.filter(function(h){return h.typ==="jista";})
       .sort(function(a,b){return (a.obec||"").localeCompare(b.obec||"","cs");});
@@ -2074,7 +2106,7 @@ function kandListHTML(o){
       "<span class='kpocet'>"+kand.length+" "+pl(kand.length,"kandidát","kandidáti","kandidátů")+"</span></div>"+
       (kand.length?"<ol class='zast'>"+kand.map(function(k){
         var dt=[k.vek?k.vek+" let":"",k.pov||"",k.ps||"",k.byd?"bydliště "+k.byd:""].filter(Boolean).join(" · ");
-        return "<li>"+(k.tp?"<span class='kdet'>"+esc(k.tp)+"</span> ":"")+hl(k.jmeno,_Q)+
+        return "<li"+(k.p?" value='"+k.p+"'":"")+">"+(k.tp?"<span class='kdet'>"+esc(k.tp)+"</span> ":"")+hl(k.jmeno,_Q)+
           (k.tz?" <span class='kdet'>"+esc(k.tz)+"</span>":"")+zamTag(k.jmeno)+
           (dt?"<div class='kdet'>"+hl(dt,_Q)+"</div>":"")+"</li>";
       }).join("")+"</ol>":"")+"</div>";
@@ -2182,7 +2214,7 @@ document.getElementById("kontrolaVHOS").addEventListener("click",function(){show
 document.getElementById("kandidatky").addEventListener("click",kandOpen);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-26 · v33 (Kontrola VHOS: standardně jen shody jména i příjmení)";
+var VERZE="2026-08-26 · v34 (Kontrola VHOS: pozice na kandidátce + proklik na daného člověka)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
