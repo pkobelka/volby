@@ -791,6 +791,52 @@ function openModal(o,zvyraznit){
   document.getElementById("modal").classList.add("show");
   _OPENKAND=false;
 }
+// Volební programy 2026 – nikde nejsou v otevřených datech (volby.gov.cz dává
+// jen kandidátní listiny), takže tu držíme rozcestník: katalog Programy do
+// voleb (klíčem je kód obce ČSÚ, stejný jaký máme u obce), web obce a
+// vyhledání pro každou volební stranu. Nalezený odkaz jde uložit, ať ho
+// příště nehledá znovu i kolega.
+var PDV_OBEC="https://programydovoleb.cz/volby/komunalni-volby/176/obec/";
+function hledatURL(q){return "https://www.google.com/search?q="+encodeURIComponent(q);}
+function hledatLink(q,text){return "<a href='"+esc(hledatURL(q))+"' target='_blank' rel='noopener'>"+esc(text||"vyhledat")+" \ud83d\udd0e</a>";}
+function programKey(s,i){var c=(s&&s.c!=null)?String(s.c).replace(/[^0-9A-Za-z]/g,""):"";return c?"c"+c:"i"+i;}
+// Název strany často obsahuje i název obce ("Sdružení pro město Svitavy") –
+// pak by se v dotazu opakoval.
+function dotazNaProgram(o,s){var n=s.nazev||"";
+  return n+(fold(n).indexOf(fold(o.nazev))>=0?"":" "+o.nazev)+" volební program 2026";}
+function programyHTML(o){
+  var s26=o.strany_2026||[], ulo=o.programy_2026||{};
+  var h="<div class='r'><b>Rozcestník</b><span>"+
+    "<a href='"+esc(PDV_OBEC+o.kod)+"' target='_blank' rel='noopener'>Programy do voleb</a>"+
+    (o.web?" · "+link(o.web,"web"):"")+
+    " · "+hledatLink("volební program komunální volby 2026 "+o.nazev,"vyhledat")+"</span></div>";
+  if(!s26.length)return h+"<div class='hint'>Volební strany zatím nenačtené — nejdřív načti kandidátky 2026.</div>";
+  return h+s26.map(function(s,i){
+    var u=ulo[programKey(s,i)];
+    return "<div class='kstr'><div class='khdr'><span class='kc'>"+esc(String(s.c||"?"))+"</span>"+
+      "<span>"+hl(s.nazev||"(bez názvu)",_Q)+"</span></div>"+
+      "<div class='kdet'>"+(u?"\ud83d\udcc4 "+link(u,"web"):"<span class='prazdne'>program nevyplněn</span>")+
+      " · "+hledatLink(dotazNaProgram(o,s),"vyhledat")+"</div></div>";
+  }).join("");
+}
+function openProgramEditor(){
+  var o=_CUR, s26=o.strany_2026||[], ulo=o.programy_2026||{};
+  if(!s26.length){renderModal();return;}
+  document.getElementById("mbody").innerHTML="<h2>\ud83d\udcc4 Volební programy — "+esc(o.nazev)+"</h2>"+
+    "<div class='hint'>Odkaz na program strany (web, PDF, Facebook). Prázdné pole odkaz smaže.</div>"+
+    s26.map(function(s,i){return editRow((s.c!=null?s.c+" · ":"")+(s.nazev||"(bez názvu)"),"pg_"+programKey(s,i),ulo[programKey(s,i)]);}).join("")+
+    "<div class='mtools'><button class='btn' id='pg_save'>\ud83d\udcbe Uložit</button><button class='btn ghost' id='pg_back'>← Zpět</button></div>"+
+    "<div class='msg' id='mmsg'></div>";
+  document.getElementById("pg_back").addEventListener("click",function(){renderModal();});
+  document.getElementById("pg_save").addEventListener("click",function(){
+    var obj={},n=0;
+    s26.forEach(function(s,i){var k=programKey(s,i),v=(document.getElementById("pg_"+k).value||"").trim();if(v){obj[k]=v;n++;}});
+    document.getElementById("mmsg").textContent="Ukládám…";
+    FDB.ref("volby_obce/"+o.kod).update({programy_2026:n?obj:null,upravil:_USER.email,upravil_ts:Date.now()})
+      .then(function(){o.programy_2026=n?obj:null;renderModal();})
+      .catch(function(e){document.getElementById("mmsg").textContent="\u26a0\ufe0f "+(e&&e.message?e.message:e);});
+  });
+}
 function renderModal(){
   var o=_CUR;var z22=o.zastupitelstvo||[], z26=o.zastupitelstvo_2026||[];
   var head="<h2>"+hl(o.nazev,_Q)+"</h2><div class='mbadges'>"+badgesHTML(o)+"</div>";
@@ -824,6 +870,7 @@ function renderModal(){
     if(k26.length||s26.length) body+="<div class='sekce'>Volby 2026 <span class='obd'>· období 2026–2030</span></div>"+
       det("Kandidátky ("+(function(){var n=s26.length||o.pocet_stran_2026||0;
         return (n?n+" "+pl(n,"strana","strany","stran"):"")+(k26.length?(n?" / ":"")+k26.length+" "+pl(k26.length,"kandidát","kandidáti","kandidátů"):"");})()+")","",kandListHTML(o),otevritKand);
+    if(k26.length||s26.length) body+=det("Volební programy",secPencil("programy"),programyHTML(o),false);
     if(o.rada&&o.rada.length) body+=det("Městská rada ("+o.rada.length+")","",listUL(o.rada),false);
     if(o.terminy&&o.terminy.length) body+=det("Termíny zastupitelstev","",listCal(o.terminy,"Zastupitelstvo "+o.nazev,o.nazev),false);
     body+=det("Poznámky",secPencil("poznamky"),(o.poznamky?"<div class='r'><span class='pozn'>"+hl(o.poznamky,_Q)+"</span></div>":"<span class='prazdne'>— žádné (ťukni ✏️) —</span>"),false);
@@ -845,7 +892,7 @@ function renderModal(){
     (o.kandidatky_zdroj?" | kandidátky 2026: "+esc(o.kandidatky_zdroj)+(o.kandidatky_ts?" ("+new Date(o.kandidatky_ts).toLocaleDateString("cs")+")":""):"")+"</div>";
   document.getElementById("mbody").innerHTML=body;
   Array.prototype.forEach.call(document.querySelectorAll("#mbody .cal"),function(el){el.addEventListener("click",function(e){e.stopPropagation();icsFromEl(el);});});
-  Array.prototype.forEach.call(document.querySelectorAll("#mbody .secedit"),function(el){el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();var s=el.getAttribute("data-sec");if(s==="poznamky")openPoznEditor();else if(s==="navstevy")openNavEditor();});});
+  Array.prototype.forEach.call(document.querySelectorAll("#mbody .secedit"),function(el){el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();var s=el.getAttribute("data-sec");if(s==="poznamky")openPoznEditor();else if(s==="navstevy")openNavEditor();else if(s==="programy")openProgramEditor();});});
   // Okno se zobrazuje až po renderModal(), takže scrollovat teď by bylo do
   // skrytého prvku a neudělalo by to nic – proto až v dalším snímku.
   if(!_EDIT&&_Q)pozdeji(zamerZvyrazneni);
