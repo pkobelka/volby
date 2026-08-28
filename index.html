@@ -2130,11 +2130,11 @@ var _kandFiles=[], _kandPre=null;
 // pole, která z kandidátky potřebujeme; ke každému názvy sloupců, jak je píše volby.cz
 var KPOLE=[
   ["kod",    "Kód obce",             ["obec","kodobec","kodobce","kodzastup","kodzast","cisobec","cobec","obeckod","kod"]],
-  ["nazobec","Obec / zastupitelstvo", ["nazevobec","nazevobce","obecnazev","nazevzast","nazevzastup","nazevzastupitelstva","zastupitelstvo","zastupitelstvoobce"]],
+  ["nazobec","Obec / zastupitelstvo", ["nazevobec","nazevobce","obecnazev","nazevzast","nazevzastup","nazevzastupitelstva","zastupitelstvo","zastupitelstvoobce","nazobec","nazobce"]],
   ["strc",   "Číslo volební strany", ["porstrhl","cislostrany","cstrana","cvs","cislovs","porcislostrany","cisstrany","cislokl"]],
-  ["strn",   "Volební strana / kandidátní listina", ["nazevstrk","nazevcelk","nazevstrany","nazevvs","nazevstr","nazevkl","kandidatnilistina","volebnistrana","nazevkandidatnilistiny","nazevvolebnistrany","vyberetekandidatnilistinu","nazev"]],
+  ["strn",   "Volební strana / kandidátní listina", ["nazevstrk","nazevcelk","nazevstrany","nazevvs","nazevstr","nazevkl","kandidatnilistina","volebnistrana","nazevkandidatnilistiny","nazevvolebnistrany","vyberetekandidatnilistinu","nazstr","nazstrk","nazev"]],
   ["strt",   "Typ volební strany",   ["typstrany","typstr","typ"]],
-  ["por",    "Pořadí na kandidátce", ["porcislo","poradi","porc","poradovecislo","porcis"]],
+  ["por",    "Pořadí na kandidátce", ["porcislo","poradi","porc","poradovecislo","porcis","porkand"]],
   ["prij",   "Příjmení",             ["prijmeni","prijmenik","prijmenikand"]],
   ["jm",     "Jméno",                ["jmeno","jmenok","krestni","krestnijmeno"]],
   ["cele",   "Celé jméno (příjmení, jméno, tituly)", ["prijmenijmenotituly","prijmenijmenatituly","prijmenijmeno","celejmeno","jmenoaprijmeni","jmenoprijmeni","kandidat","jmenokandidata"]],
@@ -2147,7 +2147,8 @@ var KPOLE=[
   ["byd",    "Bydliště",             ["bydlisten","bydliste","obecbydliste","trvalybytem"]],
   ["plat",   "Platnost kandidáta",   ["platnost","platny","stav"]],
   // výsledkové soubory (KV2022) mají navíc hlasy a mandát – vezmeme je taky
-  ["hlasy",  "Počet hlasů",          ["pochlasu","pocethlasu","hlasy","hlasyabs","hlasucelkem"]],
+  // pozor na poradi: POC_HLASU je za kandidata, HLASY byva za celou stranu
+  ["hlasy",  "Počet hlasů kandidáta",["pochlasu","pocethlasu","hlasykand","hlasyabs","hlasy"]],
   ["mand",   "Mandát / zvolen",      ["mandat","zvolen","mandaty"]]
 ];
 // obecné názvy, které smí zabrat sloupec jen při přesné shodě – jinak by si
@@ -2407,9 +2408,11 @@ function kandReadFile(f){
 function kandAutoMap(hdr){
   var fh=hdr.map(kfold), used={}, map={};
   KPOLE.forEach(function(p){                       // 1) přesná shoda názvu sloupce
-    for(var i=0;i<fh.length;i++){
-      if(used[i]||!fh[i])continue;
-      if(p[2].indexOf(fh[i])>=0){map[p[0]]=i;used[i]=1;return;}
+    for(var a=0;a<p[2].length;a++){                 // rozhoduje pořadí aliasů,
+      for(var i=0;i<fh.length;i++){                 // ne pořadí sloupců v souboru
+        if(used[i]||!fh[i])continue;
+        if(fh[i]===p[2][a]){map[p[0]]=i;used[i]=1;return;}
+      }
     }
   });
   // Ve vnořeném JSONu se stejné názvy opakují na víc úrovních (obec i strana mají
@@ -2743,7 +2746,8 @@ function kandOpen(rok){
     "<div class='hint' style='margin-top:10px'><b>Odkud vzít data za celý okres naráz:</b> "+
     (_KROK==="2022"
       ? "<a href='https://www.volby.cz/opendata/kv2022/kv2022_opendata.htm' target='_blank' rel='noopener'>volby.cz/opendata – KV2022</a> → "+
-        "číselníky a registry kandidátních listin (CSV, XML). "
+        "<b>Obce – XML data – výsledky za okresy a obce</b>; do adresy dosaď <b>nuts=CZ0533</b> (okres Svitavy) a "+
+        "<b>datumvoleb=20220923</b> – v jednom souboru je celý okres i s hlasy pro kandidáty. "
       : "<a href='https://volby.gov.cz/opendata/opendata.htm' target='_blank' rel='noopener'>volby.gov.cz/opendata</a> → "+
         "volby do zastupitelstev obcí 2026 → <b>Registry – zip balíky</b> → <b>CSV (CSVW)</b> (nebo Excel, XML, JSON – je to jedno). ")+
     "Stažený <b>.zip</b> nahraj sem rovnou, apka si ho rozbalí, najde v něm kandidáty a volební strany, zbytek balíku "+
@@ -3088,7 +3092,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-28 · v39 (složky Volby 2022 / Volby 2026 s podsložkami: kandidátky, výsledky, zastupitelstva)";
+var VERZE="2026-08-28 · v40 (import kandidátek 2022 za celý okres z XML volby.cz, hlasy a mandát u kandidáta)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
