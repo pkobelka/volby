@@ -132,6 +132,11 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 .kstr .kc{background:var(--zelena);color:#fff;border-radius:6px;padding:1px 7px;font-size:.78rem;font-weight:700;}
 .kstr .kpocet{margin-left:auto;font-weight:400;color:#8a8272;font-size:.78rem;}
 .kstr .tiskstr{cursor:pointer;margin-left:4px;}
+.vtab{width:100%;border-collapse:collapse;font-size:.86rem;margin-top:6px;}
+.vtab th,.vtab td{border-bottom:1px solid #eef1ea;padding:4px 6px;text-align:left;}
+.vtab th{color:#8a8272;font-weight:600;font-size:.76rem;text-transform:uppercase;letter-spacing:.03em;}
+.vtab td.c,.vtab th.c{text-align:right;white-space:nowrap;}
+.vtab tr.vman{background:#f3f8f1;}
 .tseznam{max-height:44vh;overflow:auto;border:1px solid var(--sedaramecek);border-radius:8px;background:#fff;padding:6px 10px;margin-top:8px;}
 .tseznam label{display:flex;gap:8px;align-items:center;padding:3px 0;font-size:.92rem;cursor:pointer;}
 .tseznam label.np{color:#a9a292;cursor:default;}
@@ -533,8 +538,10 @@ function initKdo(){
   var nK=OBCE.reduce(function(a,o){return a+((o.kandidati_2026||[]).length);},0);
   var nKo=OBCE.filter(function(o){return (o.kandidati_2026||[]).length;}).length;
   var nZ=OBCE.reduce(function(a,o){return a+((o.zastupitelstvo||[]).length);},0);
+  var nV=OBCE.filter(function(o){return (o.vysledky_2022&&(o.vysledky_2022.strany||[]).length);}).length;
   box.innerHTML="";
   [["nyni","\uD83D\uDC77 Zastupitelstva 2022\u20132026","dnešní starostové, rady a zastupitelé"],
+   ["2022","\uD83D\uDCCA Výsledky voleb 2022","hlasy a mandáty volebních stran"],
    ["2026","\uD83D\uDDF3\uFE0F Kandidátky 2026","registrované kandidátní listiny"],
    ["vse","Vše dohromady","bez rozlišení"]].forEach(function(o){
     var b=document.createElement("button");
@@ -551,6 +558,11 @@ function initKdo(){
     if(fKdo==="nyni")
       pop.innerHTML="Zvoleno v komunálních volbách 09/2022 · <b>"+nZ+"</b> "+pl(nZ,"zastupitel","zastupitelé","zastupitelů")+
         ". Hledání i Kontrola VHOS berou jen současné funkce.";
+    else if(fKdo==="2022")
+      pop.innerHTML=nV
+        ? "Komunální volby 09/2022 · výsledky u <b>"+nV+"</b> "+pl(nV,"obce","obcí","obcí")+
+          ". Hledání bere názvy volebních stran z roku 2022."
+        : "Výsledky zatím nejsou načtené – otevři obec, sekce <b>Výsledky voleb 2022</b> a vlož tabulku z volby.cz.";
     else if(fKdo==="2026")
       pop.innerHTML=nK
         ? "Volby na podzim 2026 → období 2026\u20132030 · <b>"+nK+"</b> "+pl(nK,"kandidát","kandidáti","kandidátů")+
@@ -564,8 +576,12 @@ function initKdo(){
 
 function matchZast(o,q){return (o.zastupitelstvo||[]).some(function(z){return fold(z).indexOf(q)>=0;});}
 function matchArr(a,q){return (a||[]).some(function(x){return fold(x).indexOf(q)>=0;});}
+function strany2022(o){return (o.vysledky_2022&&o.vysledky_2022.strany)||[];}
+function matchStrany2022(o,q){return strany2022(o).some(function(st){return fold(st.nazev).indexOf(q)>=0;});}
 function matchObec(o,q){
   if(fold(o.nazev).indexOf(q)>=0||matchArr(o.vf,q))return true;   // obec a fakturace platí vždy
+  if(fKdo==="2022")return matchStrany2022(o,q);
+  if(fKdo==="vse"&&matchStrany2022(o,q))return true;
   if(fKdo!=="2026"){
     if(fold(o.starosta).indexOf(q)>=0||fold(o.mistostarosta).indexOf(q)>=0||fold(o.ucetni).indexOf(q)>=0)return true;
     if(fold(o.starosta_email).indexOf(q)>=0||fold(o.email).indexOf(q)>=0)return true;
@@ -595,6 +611,11 @@ function hitKand(o,q){
 function hitObec(o,q){
   if(!q||fold(o.nazev).indexOf(q)>=0) return "";
   if(fKdo==="2026") return hitKand(o,q);
+  if(fKdo==="2022"){
+    var s22=strany2022(o).filter(function(st){return fold(st.nazev).indexOf(q)>=0;});
+    return s22.length?"<div class='hit'>🔎 strana 2022: "+s22.map(function(st){
+      return hl(st.nazev,q)+(st.mandaty!=null?" ("+st.mandaty+" "+pl(st.mandaty,"mandát","mandáty","mandátů")+")":"");}).join(", ")+"</div>":"";
+  }
   if(fold(o.starosta).indexOf(q)>=0) return "<div class='hit'>🔎 starosta: "+hl(o.starosta,q)+"</div>";
   if(fold(o.mistostarosta).indexOf(q)>=0) return "<div class='hit'>🔎 místostarosta: "+hl(o.mistostarosta,q)+"</div>";
   if(fold(o.ucetni).indexOf(q)>=0) return "<div class='hit'>🔎 účetní: "+hl(o.ucetni,q)+"</div>";
@@ -644,7 +665,8 @@ function render(){
     if(o.provozovano!==last){last=o.provozovano;groupHdr(g,o.provozovano);}
     var d=document.createElement("div");d.className="obec"+(o.provozovano?"":" np");
     d.innerHTML="<h3>"+hl(o.nazev,_Q)+"</h3><div class='badges'>"+badgesHTML(o)+"</div>"+hitObec(o,_Q)+
-      "<div class='hint'>"+((o.zastupitelstvo&&o.zastupitelstvo.length)?o.zastupitelstvo.length+" zastupitelů · ":"")+
+      "<div class='hint'>"+((fKdo==="2022"&&o.vysledky_2022)?"📊 "+esc(vysledkyShrnuti(o.vysledky_2022))+" · ":
+        ((o.zastupitelstvo&&o.zastupitelstvo.length)?o.zastupitelstvo.length+" zastupitelů · ":""))+
       (kandPocet(o)?"🗳️ "+kandPocet(o)+" 2026 · ":"")+"klikni pro detail</div>";
     d.addEventListener("click",function(){openModal(o);});g.appendChild(d);
   });
@@ -1005,6 +1027,112 @@ function tiskVyber(){
   });
   tiskPocet();
 }
+/* ---- Vysledky voleb 2022 --------------------------------------------
+   Volby.cz vysledky v otevrenych datech po obcich nemame nactene, takze se
+   vklada tabulka primo ze stranky obce na volby.cz (Ctrl+A, Ctrl+C).
+   Ceka na dve tabulky: souhrnnou (mandaty, okrsky, ucast) a kandidatni
+   listiny s hlasy a mandaty. Ulozi se do volby_obce/<kod>/vysledky_2022. */
+function vcislo(x){
+  var t=String(x==null?"":x).replace(/[\s\u00a0]/g,"").replace(",",".");
+  return /^-?\d+(\.\d+)?$/.test(t)?parseFloat(t):null;
+}
+function vfmt(n,des){
+  if(n==null)return "—";
+  var t=(des?n.toFixed(des):String(Math.round(n))).replace(".",",");
+  return t.replace(/\B(?=(\d{3})+(?!\d))/g," ");
+}
+function parseVysledky(text){
+  var strany=[],souhrn=null;
+  String(text||"").split(/\r?\n/).forEach(function(r){
+    var b=r.split(/\t|\s{2,}/).map(function(x){return x.trim();}).filter(function(x){return x!=="";});
+    if(b.length<3)return;
+    var c=vcislo(b[0]);
+    if(c!==null&&c===Math.round(c)&&c>=1&&c<=99&&vcislo(b[1])===null){
+      var n=b.slice(2).map(vcislo).filter(function(x){return x!==null;});
+      if(n.length<2)return;
+      strany.push({c:Math.round(c),nazev:b[1],hlasy:n[0],proc:n[1],
+        kandidatu:n.length>2?Math.round(n[2]):null,
+        mandaty:n.length>=6?Math.round(n[5]):(n.length===4?Math.round(n[3]):null)});
+      return;
+    }
+    var vs=b.map(vcislo);
+    if(!souhrn&&vs.length>=10&&vs.every(function(x){return x!==null;}))
+      souhrn={mandatu:vs[0],obvody:vs[1],okrsky:vs[2],okrsky_zpr:vs[3],volici:vs[5],
+              obalky:vs[6],ucast:vs[7],odevzdane:vs[8],platne:vs[9]};
+  });
+  if(!strany.length)return null;
+  var v=souhrn||{};
+  v.strany=strany;
+  v.zdroj="volby.cz KV2022";
+  v.ts=Date.now();
+  return v;
+}
+function vitez(v){
+  var s=(v&&v.strany)||[];
+  if(!s.length)return null;
+  return s.slice().sort(function(a,b){return (b.hlasy||0)-(a.hlasy||0);})[0];
+}
+function vysledkyShrnuti(v){
+  if(!v)return "";
+  var w=vitez(v);
+  return [v.ucast!=null?"účast "+vfmt(v.ucast,2)+" %":"",
+          v.mandatu?v.mandatu+" "+pl(v.mandatu,"mandát","mandáty","mandátů"):"",
+          w?"nejvíc hlasů: "+w.nazev+(w.mandaty!=null?" ("+w.mandaty+")":""):""].filter(Boolean).join(" · ");
+}
+function vysledkyHTML(o){
+  var v=o.vysledky_2022;
+  if(!v||!(v.strany||[]).length)
+    return "<span class='prazdne'>— nenačteno (ťukni ✏️ a vlož tabulku z volby.cz) —</span>";
+  var h="<div class='r'><b>Souhrn</b><span>"+
+    (v.mandatu?"zastupitelstvo <b>"+v.mandatu+"</b> "+pl(v.mandatu,"člen","členové","členů")+" · ":"")+
+    (v.ucast!=null?"účast <b>"+vfmt(v.ucast,2)+" %</b> · ":"")+
+    (v.volici!=null?"voliči "+vfmt(v.volici)+" · ":"")+
+    (v.platne!=null?"platné hlasy "+vfmt(v.platne):"")+
+    (v.okrsky?" · okrsky "+v.okrsky_zpr+"/"+v.okrsky:"")+"</span></div>";
+  h+="<table class='vtab'><thead><tr><th>č.</th><th>Volební strana</th><th>Hlasy</th><th>%</th><th>Kand.</th><th>Mandáty</th></tr></thead><tbody>"+
+    v.strany.map(function(st){
+      return "<tr"+(st.mandaty?" class='vman'":"")+"><td class='c'>"+st.c+"</td><td>"+hl(st.nazev,_Q)+"</td>"+
+        "<td class='c'>"+vfmt(st.hlasy)+"</td><td class='c'>"+vfmt(st.proc,2)+"</td>"+
+        "<td class='c'>"+(st.kandidatu==null?"—":st.kandidatu)+"</td>"+
+        "<td class='c'><b>"+(st.mandaty==null?"—":st.mandaty)+"</b></td></tr>";
+    }).join("")+"</tbody></table>"+
+    "<div class='zdroj'>zdroj: "+esc(v.zdroj||"volby.cz KV2022")+(v.ts?" ("+new Date(v.ts).toLocaleDateString("cs")+")":"")+"</div>";
+  return h;
+}
+var _vysTmp=null;
+function openVysledkyEditor(){
+  var o=_CUR;_vysTmp=null;
+  document.getElementById("mbody").innerHTML="<h2>📊 Výsledky voleb 2022 — "+esc(o.nazev)+"</h2>"+
+    "<div class='hint' style='margin-top:8px'>Na <a href='https://www.volby.cz/pls/kv2022/kv?xjazyk=CZ' target='_blank' rel='noopener'>volby.cz</a> otevři výsledky obce (Zastupitelstva obcí 2022 → výběr obce), na stránce dej <b>Ctrl+A</b>, <b>Ctrl+C</b> a vlož sem. Apka si z toho vezme souhrnnou tabulku (mandáty, okrsky, účast) i kandidátní listiny s hlasy.</div>"+
+    "<div class='r' style='display:block;margin-top:8px'><textarea id='vy_text' rows='8' placeholder='vlož zkopírovanou stránku z volby.cz…'></textarea></div>"+
+    "<div class='mtools'><button class='btn ghost' id='vy_nacti'>Načíst vložený text</button>"+
+    (o.vysledky_2022?"<button class='btn ghost' id='vy_del'>🗑 Smazat výsledky</button>":"")+
+    "<button class='btn ghost' id='vy_back'>← Zpět</button></div>"+
+    "<div id='vy_nahled'></div><div class='msg' id='mmsg'></div>";
+  document.getElementById("vy_back").addEventListener("click",function(){renderModal();});
+  var del=document.getElementById("vy_del");
+  if(del)del.addEventListener("click",function(){
+    FDB.ref("volby_obce/"+o.kod).update({vysledky_2022:null,upravil:_USER.email,upravil_ts:Date.now()})
+      .then(function(){o.vysledky_2022=null;renderModal();})
+      .catch(function(e){document.getElementById("mmsg").textContent="⚠️ "+(e&&e.message?e.message:e);});
+  });
+  document.getElementById("vy_nacti").addEventListener("click",function(){
+    var v=parseVysledky(document.getElementById("vy_text").value);
+    if(!v){document.getElementById("mmsg").textContent="⚠️ Nenašel jsem tabulku kandidátních listin – zkus zkopírovat celou stránku.";return;}
+    _vysTmp=v;
+    document.getElementById("mmsg").textContent="";
+    document.getElementById("vy_nahled").innerHTML="<div class='sekce'>Náhled ("+v.strany.length+" "+
+      pl(v.strany.length,"volební strana","volební strany","volebních stran")+")</div>"+
+      vysledkyHTML({vysledky_2022:v})+
+      "<div class='mtools'><button class='btn' id='vy_save'>💾 Uložit</button></div>";
+    document.getElementById("vy_save").addEventListener("click",function(){
+      document.getElementById("mmsg").textContent="Ukládám…";
+      FDB.ref("volby_obce/"+o.kod).update({vysledky_2022:_vysTmp,upravil:_USER.email,upravil_ts:Date.now()})
+        .then(function(){o.vysledky_2022=_vysTmp;renderModal();})
+        .catch(function(e){document.getElementById("mmsg").textContent="⚠️ "+(e&&e.message?e.message:e);});
+    });
+  });
+}
 function renderModal(){
   var o=_CUR;var z22=o.zastupitelstvo||[], z26=o.zastupitelstvo_2026||[];
   var head="<h2>"+hl(o.nazev,_Q)+"</h2><div class='mbadges'>"+badgesHTML(o)+"</div>";
@@ -1031,6 +1159,10 @@ function renderModal(){
       det("Úřad",esc(o.email||o.tel||""),viewRow("E-mail",o.email,"email")+viewRow("Telefon",o.tel,"tel")+viewRow("Web",o.web,"web")+viewRow("Adresa",o.adresa)+"<div class='r'><b>VF (fakturace)</b><span>"+vfList(o.vf)+"</span></div>",false)+
       det("Účetní",pz(o.ucetni),viewRow("Telefon",o.ucetni_tel,"tel")+viewRow("E-mail",o.ucetni_email,"email"),false)+
       det("Zastupitelstvo"+(z22.length?" ("+z22.length+")":""),"",zastList(z22,"— k doplnění —"),false);
+    var v22=o.vysledky_2022;
+    body+="<div class='sekce'>Volby 2022 <span class='obd'>· z čeho vzešlo zastupitelstvo</span></div>"+
+      det("Výsledky voleb 2022"+((v22&&v22.strany)?" ("+v22.strany.length+")":""),
+        secPencil("vysledky"),vysledkyHTML(o),fKdo==="2022");
     var k26=o.kandidati_2026||[], s26=o.strany_2026||[];
     // rozbalit i při hledání, když dotaz sedí jen na kandidáta – jinak by
     // zvýraznění zůstalo schované v zabalené sekci
@@ -1064,7 +1196,7 @@ function renderModal(){
     (o.kandidatky_zdroj?" | kandidátky 2026: "+esc(o.kandidatky_zdroj)+(o.kandidatky_ts?" ("+new Date(o.kandidatky_ts).toLocaleDateString("cs")+")":""):"")+"</div>";
   document.getElementById("mbody").innerHTML=body;
   Array.prototype.forEach.call(document.querySelectorAll("#mbody .cal"),function(el){el.addEventListener("click",function(e){e.stopPropagation();icsFromEl(el);});});
-  Array.prototype.forEach.call(document.querySelectorAll("#mbody .secedit"),function(el){el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();var s=el.getAttribute("data-sec");if(s==="poznamky")openPoznEditor();else if(s==="navstevy")openNavEditor();else if(s==="programy")openProgramEditor();});});
+  Array.prototype.forEach.call(document.querySelectorAll("#mbody .secedit"),function(el){el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();var s=el.getAttribute("data-sec");if(s==="poznamky")openPoznEditor();else if(s==="navstevy")openNavEditor();else if(s==="programy")openProgramEditor();else if(s==="vysledky")openVysledkyEditor();});});
   // Okno se zobrazuje až po renderModal(), takže scrollovat teď by bylo do
   // skrytého prvku a neudělalo by to nic – proto až v dalším snímku.
   if(!_EDIT&&_Q)pozdeji(zamerZvyrazneni);
