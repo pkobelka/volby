@@ -2407,12 +2407,15 @@ function kandReadFile(f){
 }
 
 /* ---- přiřazení sloupců (automaticky, uživatel může přepsat) ---- */
+// "POCET_KANDIDATU" obsahuje slovo "kandidat", takze by se jinak vydaval za
+// jmeno kandidata; souhrny za stranu smi zabrat jen pole s hlasy.
+function kzakaz(pole,fh){return /pocet|celkem|soucet/.test(fh)&&pole!=="hlasy";}
 function kandAutoMap(hdr){
   var fh=hdr.map(kfold), used={}, map={};
   KPOLE.forEach(function(p){                       // 1) přesná shoda názvu sloupce
     for(var a=0;a<p[2].length;a++){                 // rozhoduje pořadí aliasů,
       for(var i=0;i<fh.length;i++){                 // ne pořadí sloupců v souboru
-        if(used[i]||!fh[i])continue;
+        if(used[i]||!fh[i]||kzakaz(p[0],fh[i]))continue;
         if(fh[i]===p[2][a]){map[p[0]]=i;used[i]=1;return;}
       }
     }
@@ -2431,7 +2434,7 @@ function kandAutoMap(hdr){
   KPOLE.forEach(function(p){                       // 2) sloupec název jen obsahuje
     if(map[p[0]]!=null)return;
     for(var i=0;i<fh.length;i++){
-      if(used[i]||!fh[i])continue;
+      if(used[i]||!fh[i]||kzakaz(p[0],fh[i]))continue;
       for(var a=0;a<p[2].length;a++){
         if(KOBECNE[p[2][a]])continue;
         if(p[2][a].length>3&&fh[i].indexOf(p[2][a])>=0){map[p[0]]=i;used[i]=1;return;}
@@ -2748,9 +2751,9 @@ function kandOpen(rok){
     "<div class='hint' style='margin-top:10px'><b>Odkud vzít data za celý okres naráz:</b> "+
     (_KROK==="2022"
       ? "<a href='https://www.volby.cz/opendata/kv2022/kv2022_opendata.htm' target='_blank' rel='noopener'>volby.cz/opendata – KV2022</a> → "+
-        "<b>Obce – XML data – výsledky za okresy a obce</b> – v jednom souboru je celý okres i s hlasy pro kandidáty:<br>"+
-        "<a href='"+KV2022_OKRES+"' target='_blank' rel='noopener'>"+esc(KV2022_OKRES)+"</a><br>"+
-        "(<b>nuts=CZ0533</b> je okres Svitavy, <b>datumvoleb=20220923</b> termín voleb – adresa je níž předvyplněná). "
+        "<b>Registry – XML / Excel / CSV (CSVW)</b>: tam jsou <b>celé kandidátní listiny</b> (všichni kandidáti), to je pro tuhle složku to pravé.<br>"+
+        "<span class='prazdne'>Pozor: soubor <a href='"+KV2022_OKRES+"' target='_blank' rel='noopener'>vysledky_obce_okres</a> "+
+        "(níž předvyplněný) obsahuje výsledky a <b>jen zvolené zastupitele</b>, ne celé kandidátky – hodí se na výsledky voleb.</span> "
       : "<a href='https://volby.gov.cz/opendata/opendata.htm' target='_blank' rel='noopener'>volby.gov.cz/opendata</a> → "+
         "volby do zastupitelstev obcí 2026 → <b>Registry – zip balíky</b> → <b>CSV (CSVW)</b> (nebo Excel, XML, JSON – je to jedno). ")+
     "Stažený <b>.zip</b> nahraj sem rovnou, apka si ho rozbalí, najde v něm kandidáty a volební strany, zbytek balíku "+
@@ -3095,7 +3098,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-28 · v41 (import 2022: adresa XML za celý okres předvyplněná)";
+var VERZE="2026-08-28 · v42 (import 2022: oprava jmen kandidátů, návod na registry)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
