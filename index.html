@@ -2270,6 +2270,40 @@ function acNastav(kod,provoz,btn){
     .then(function(){o.provozovano=!!provoz;acMsg("✔ "+esc(o.nazev)+" – "+(provoz?"provozované":"neprovozované")+" (nezapomeň na hranice.json).");acPorovnej();})
     .catch(function(e){btn.disabled=false;acMsg("⚠️ "+esc(e&&e.message?e.message:String(e)));});
 }
+// Srovna strukturni pole podle hranice.json (stejny zdroj pravdy jako pri
+// importu kontaktu), aby se opravy v repu daly protahnout do Firebase i bez
+// souboru kontakty.json. Nejdriv ukaze rozdily, teprve pak zapisuje.
+var _HRDIF=null;
+function acHranice(){
+  acMsg("Čtu hranice.json…");
+  fetch("hranice.json").then(function(r){return r.json();}).then(function(gj){
+    var upd={},zmeny=[];
+    (gj.features||[]).forEach(function(f){
+      var p=f.properties||{},o=obecByKod(p.kod);
+      if(!o)return;
+      var popis=[];
+      ["nazev","provozovano","pracoviste","okres"].forEach(function(k){
+        var nova=(k==="provozovano")?!!p[k]:(p[k]||"");
+        var stara=(k==="provozovano")?!!o[k]:(o[k]||"");
+        if(nova===stara)return;
+        upd["volby_obce/"+p.kod+"/"+k]=nova;
+        popis.push(k+": "+(k==="provozovano"?(stara?"provozované":"neprovozované")+" → "+(nova?"provozované":"neprovozované")
+                                            :"„"+(stara||"—")+"“ → „"+(nova||"—")+"“"));
+      });
+      if(popis.length)zmeny.push({kod:p.kod,nazev:p.nazev,popis:popis.join(" · ")});
+    });
+    if(!zmeny.length){_HRDIF=null;acMsg("✔ Data ve Firebase odpovídají hranice.json, není co srovnávat.");return;}
+    _HRDIF=upd;
+    acMsg("<b>Rozdíly proti hranice.json ("+zmeny.length+"):</b>"+
+      "<ul class='zast'>"+zmeny.map(function(z){return "<li><b>"+esc(z.nazev)+"</b> – "+esc(z.popis)+"</li>";}).join("")+"</ul>"+
+      "<div class='mtools'><button class='btn' id='hr_zapis'>💾 Zapsat do Firebase</button></div>");
+    document.getElementById("hr_zapis").addEventListener("click",function(){
+      acMsg("Zapisuji…");
+      FDB.ref().update(_HRDIF).then(function(){_HRDIF=null;acMsg("✔ Srovnáno podle hranice.json.");})
+        .catch(function(e){acMsg("⚠️ "+esc(e&&e.message?e.message:String(e)));});
+    });
+  }).catch(function(e){acMsg("⚠️ hranice.json se nepodařilo načíst: "+esc(e&&e.message?e.message:String(e)));});
+}
 function acOpen(){
   if(!_USER)return;
   var np=OBCE.filter(function(o){return !o.provozovano;}).length;
@@ -2281,9 +2315,12 @@ function acOpen(){
     "<div class='r' style='display:block;margin-top:10px'><textarea id='ac_text' rows='8' placeholder='Kladky\nKrasíkov\n…  (jedna obec na řádek, nebo sloupce z Excelu)'></textarea></div>"+
     "<div class='mtools'><button class='btn' id='ac_go'>🔎 Porovnat</button>"+
     "<button class='btn ghost' id='ac_file'>⬆️ Načíst ze souboru</button>"+
+    "<button class='btn ghost' id='ac_hranice'>🔄 Srovnat podle hranice.json</button>"+
     "<button class='btn ghost' id='ac_back'>← Zpět</button></div>"+
+    "<div class='hint'>Srovnání podle <b>hranice.json</b> protáhne do dat opravy příznaku provozováno/pracoviště z repozitáře – na to není potřeba import kontaktů.</div>"+
     "<div id='ac_vysledek'></div><div class='msg' id='mmsg'></div>";
   document.getElementById("ac_go").addEventListener("click",acPorovnej);
+  document.getElementById("ac_hranice").addEventListener("click",acHranice);
   document.getElementById("ac_file").addEventListener("click",function(){document.getElementById("acFile").click();});
   document.getElementById("ac_back").addEventListener("click",function(){document.getElementById("modal").classList.remove("show");});
 }
