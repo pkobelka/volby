@@ -268,6 +268,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <button class="btn ghost small" id="importIM">⬆️ Importovat kontakty ze souboru</button>
 <button class="btn ghost small" id="kontrolaVHOS">🔎 Kontrola VHOS</button>
 <button class="btn ghost small" id="kandidatky">🗳️ Kandidátky 2026</button>
+<button class="btn ghost small" id="kandidatky22">🗳️ Kandidátky 2022</button>
 <button class="btn ghost small" id="tiskBtn">🖨️ Tisk kandidátek</button>
 <button class="btn ghost small" id="acBtn">💧 Porovnat s AquaControl</button>
 <input type="file" id="acFile" accept=".xlsx,.xlsm,.xlsb,.xls,.csv,.txt,.tsv" style="display:none" />
@@ -375,13 +376,29 @@ function updateStav(){
     (prov?"🔎 K prověření: "+prov+" obci. ":"")+kandStav()+zamStav()+"Klikni na obec pro detail a upravy.";
 }
 
+/* Kandidatky drzime po obdobich – 2026 (registrovane listiny) a 2022
+   (listiny z minulych voleb). Pole ve Firebase se lisi jen priponou, takze
+   cely import i vypis jedou pres stejny kod, jen s jinym rokem. */
+var _KROK="2026";
+function kpole(rok,f){
+  if(f==="strany")return "strany_"+rok;
+  if(f==="kand")return "kandidati_"+rok;
+  if(f==="pk")return "pocet_kand_"+rok;
+  if(f==="ps")return "pocet_stran_"+rok;
+  return rok==="2026"?("kandidatky_"+f):("kandidatky_"+f+"_"+rok);
+}
+function kstrany(o,rok){return (o&&o[kpole(rok||"2026","strany")])||[];}
+function kjmena(o,rok){return (o&&o[kpole(rok||"2026","kand")])||[];}
 function kandStav(){
-  var k=kandStat();
-  if(!k.obci)return "Kandidátky 2026 zatím nenačtené (🗳️ Kandidátky 2026 dole). ";
-  return "🗳️ Kandidátky 2026: "+(k.kand
-      ? k.kand+" "+pl(k.kand,"kandidát","kandidáti","kandidátů")
-      : k.strany+" "+pl(k.strany,"volební strana","volební strany","volebních stran"))+
-    " v "+k.obci+" "+pl(k.obci,"obci","obcích","obcích")+". ";
+  var t=function(rok){
+    var k=kandStat(rok);
+    if(!k.obci)return "";
+    return "🗳️ Kandidátky "+rok+": "+(k.kand
+        ? k.kand+" "+pl(k.kand,"kandidát","kandidáti","kandidátů")
+        : k.strany+" "+pl(k.strany,"volební strana","volební strany","volebních stran"))+
+      " v "+k.obci+" "+pl(k.obci,"obci","obcích","obcích")+". ";
+  };
+  return (t("2026")||"Kandidátky 2026 zatím nenačtené (🗳️ Kandidátky 2026 dole). ")+t("2022");
 }
 
 /* ---------- SVAZKY VODOVODŮ ---------- */
@@ -539,9 +556,10 @@ function initKdo(){
   var nKo=OBCE.filter(function(o){return (o.kandidati_2026||[]).length;}).length;
   var nZ=OBCE.reduce(function(a,o){return a+((o.zastupitelstvo||[]).length);},0);
   var nV=OBCE.filter(function(o){return (o.vysledky_2022&&(o.vysledky_2022.strany||[]).length);}).length;
+  var nK22=OBCE.reduce(function(a,o){return a+kjmena(o,"2022").length;},0);
   box.innerHTML="";
   [["nyni","\uD83D\uDC77 Zastupitelstva 2022\u20132026","dnešní starostové, rady a zastupitelé"],
-   ["2022","\uD83D\uDCCA Výsledky voleb 2022","hlasy a mandáty volebních stran"],
+   ["2022","\uD83D\uDCCA Volby 2022","kandidátky, hlasy a mandáty"],
    ["2026","\uD83D\uDDF3\uFE0F Kandidátky 2026","registrované kandidátní listiny"],
    ["vse","Vše dohromady","bez rozlišení"]].forEach(function(o){
     var b=document.createElement("button");
@@ -559,10 +577,11 @@ function initKdo(){
       pop.innerHTML="Zvoleno v komunálních volbách 09/2022 · <b>"+nZ+"</b> "+pl(nZ,"zastupitel","zastupitelé","zastupitelů")+
         ". Hledání i Kontrola VHOS berou jen současné funkce.";
     else if(fKdo==="2022")
-      pop.innerHTML=nV
-        ? "Komunální volby 09/2022 · výsledky u <b>"+nV+"</b> "+pl(nV,"obce","obcí","obcí")+
-          ". Hledání bere názvy volebních stran z roku 2022."
-        : "Výsledky zatím nejsou načtené – otevři obec, sekce <b>Výsledky voleb 2022</b> a vlož tabulku z volby.cz.";
+      pop.innerHTML=(nV||nK22)
+        ? "Komunální volby 09/2022"+(nV?" · výsledky u <b>"+nV+"</b> "+pl(nV,"obce","obcí","obcí"):"")+
+          (nK22?" · <b>"+nK22+"</b> "+pl(nK22,"kandidát","kandidáti","kandidátů")+" na listinách":"")+
+          ". Hledání bere volební strany i kandidáty z roku 2022."
+        : "Zatím nic načteného – výsledky vložíš v detailu obce (sekce <b>Výsledky voleb 2022</b>), kandidátky tlačítkem <b>🗳️ Kandidátky 2022</b> dole.";
     else if(fKdo==="2026")
       pop.innerHTML=nK
         ? "Volby na podzim 2026 → období 2026\u20132030 · <b>"+nK+"</b> "+pl(nK,"kandidát","kandidáti","kandidátů")+
@@ -580,8 +599,8 @@ function strany2022(o){return (o.vysledky_2022&&o.vysledky_2022.strany)||[];}
 function matchStrany2022(o,q){return strany2022(o).some(function(st){return fold(st.nazev).indexOf(q)>=0;});}
 function matchObec(o,q){
   if(fold(o.nazev).indexOf(q)>=0||matchArr(o.vf,q))return true;   // obec a fakturace platí vždy
-  if(fKdo==="2022")return matchStrany2022(o,q);
-  if(fKdo==="vse"&&matchStrany2022(o,q))return true;
+  if(fKdo==="2022")return matchStrany2022(o,q)||matchArr(kjmena(o,"2022"),q);
+  if(fKdo==="vse"&&(matchStrany2022(o,q)||matchArr(kjmena(o,"2022"),q)))return true;
   if(fKdo!=="2026"){
     if(fold(o.starosta).indexOf(q)>=0||fold(o.mistostarosta).indexOf(q)>=0||fold(o.ucetni).indexOf(q)>=0)return true;
     if(fold(o.starosta_email).indexOf(q)>=0||fold(o.email).indexOf(q)>=0)return true;
@@ -591,9 +610,9 @@ function matchObec(o,q){
   return false;
 }
 // kde přesně kandidát na kandidátce stojí – ať to je vidět rovnou v seznamu
-function kandKde(o,jmeno){
+function kandKde(o,jmeno,rok){
   var f=fold(jmeno), naj=null;
-  (o.strany_2026||[]).forEach(function(st){
+  kstrany(o,rok).forEach(function(st){
     (st.kand||[]).forEach(function(k){if(!naj&&fold(k.jmeno)===f)naj={st:st,k:k};});
   });
   if(!naj)return "";
@@ -601,20 +620,22 @@ function kandKde(o,jmeno){
     (naj.st.c?"č. "+naj.st.c+" ":"")+esc(naj.st.nazev||"")+")</span>";
 }
 // řádek na kartě: čím obec odpovídá dotazu (kromě názvu, ten je v nadpisu)
-function hitKand(o,q){
-  var k26=(o.kandidati_2026||[]).filter(function(x){return fold(x).indexOf(q)>=0;});
-  if(!k26.length)return "";
-  return "<div class='hit k26'>🗳️ "+(k26.length>1?k26.length+" kandidátů 2026: ":"kandidát 2026: ")+
-    k26.slice(0,3).map(function(x){return hl(x,q)+kandKde(o,x);}).join(", ")+
-    (k26.length>3?" a další "+(k26.length-3):"")+"</div>";
+function hitKand(o,q,rok){
+  rok=rok||"2026";
+  var kk=kjmena(o,rok).filter(function(x){return fold(x).indexOf(q)>=0;});
+  if(!kk.length)return "";
+  return "<div class='hit k26'>🗳️ "+(kk.length>1?kk.length+" kandidátů "+rok+": ":"kandidát "+rok+": ")+
+    kk.slice(0,3).map(function(x){return hl(x,q)+kandKde(o,x,rok);}).join(", ")+
+    (kk.length>3?" a další "+(kk.length-3):"")+"</div>";
 }
 function hitObec(o,q){
   if(!q||fold(o.nazev).indexOf(q)>=0) return "";
   if(fKdo==="2026") return hitKand(o,q);
   if(fKdo==="2022"){
     var s22=strany2022(o).filter(function(st){return fold(st.nazev).indexOf(q)>=0;});
-    return s22.length?"<div class='hit'>🔎 strana 2022: "+s22.map(function(st){
-      return hl(st.nazev,q)+(st.mandaty!=null?" ("+st.mandaty+" "+pl(st.mandaty,"mandát","mandáty","mandátů")+")":"");}).join(", ")+"</div>":"";
+    if(s22.length)return "<div class='hit'>🔎 strana 2022: "+s22.map(function(st){
+      return hl(st.nazev,q)+(st.mandaty!=null?" ("+st.mandaty+" "+pl(st.mandaty,"mandát","mandáty","mandátů")+")":"");}).join(", ")+"</div>";
+    return hitKand(o,q,"2022");
   }
   if(fold(o.starosta).indexOf(q)>=0) return "<div class='hit'>🔎 starosta: "+hl(o.starosta,q)+"</div>";
   if(fold(o.mistostarosta).indexOf(q)>=0) return "<div class='hit'>🔎 místostarosta: "+hl(o.mistostarosta,q)+"</div>";
@@ -927,9 +948,11 @@ window.addEventListener("afterprint",function(){var el=document.getElementById("
 function tiskHlava(nadpis,podnadpis){
   return "<div class='thlava'><h1>"+esc(nadpis)+"</h1><div class='tmeta'>"+esc(podnadpis)+"</div></div>";
 }
-function tiskPata(o){
-  return "<div class='tpata'>Kandidátky: "+esc((o&&o.kandidatky_zdroj)||"volby.gov.cz")+
-    (o&&o.kandidatky_ts?" ("+new Date(o.kandidatky_ts).toLocaleDateString("cs")+")":"")+
+function tiskPata(o,rok){
+  rok=rok||"2026";
+  var zd=o&&o[kpole(rok,"zdroj")], ts=o&&o[kpole(rok,"ts")];
+  return "<div class='tpata'>Kandidátky: "+esc(zd||(rok==="2022"?"volby.cz KV2022":"volby.gov.cz"))+
+    (ts?" ("+new Date(ts).toLocaleDateString("cs")+")":"")+
     " · vytištěno "+new Date().toLocaleDateString("cs")+
     " z aplikace Volby 2026 (VHOS)</div>";
 }
@@ -948,46 +971,54 @@ function tiskKandTab(kand){
         "<td>"+esc(k.ps||"")+"</td><td>"+esc(k.byd||"")+"</td><td class='pozn'></td></tr>";
     }).join("")+"</tbody></table>";
 }
-function tiskStranaSekce(o,st,i){
-  var kand=st.kand||[], u=(o.programy_2026||{})[programKey(st,i)];
+function tiskStranaSekce(o,st,i,rok){
+  var kand=st.kand||[], u=(rok==="2022")?null:(o.programy_2026||{})[programKey(st,i)];
   return "<div class='tsekce'><h2>"+esc((st.c!=null?st.c+" · ":"")+(st.nazev||"(bez názvu)"))+"</h2>"+
     "<div class='tmeta'>"+esc(o.nazev)+(st.typ?" · "+esc(st.typ):"")+" · "+kand.length+" "+
     pl(kand.length,"kandidát","kandidáti","kandidátů")+(u?" · program: "+esc(u):"")+"</div>"+
     tiskKandTab(kand)+"</div>";
 }
 // Samostatna sestava za jednu stranu (vlastni hlavicka i paticka).
-function tiskStrana(o,i){
-  var st=(o.strany_2026||[])[i];
+function tiskStrana(o,i,rok){
+  rok=rok||"2026";
+  var st=kstrany(o,rok)[i];
   if(!st)return;
+  var pr=(rok==="2026")?(o.programy_2026||{})[programKey(st,i)]:null;
   tiskuj("<div class='tobec'>"+tiskHlava((st.c!=null?st.c+" · ":"")+(st.nazev||"(bez názvu)"),
-      o.nazev+" · kandidátní listina pro volby do zastupitelstev obcí 9.–10. 10. 2026")+
+      o.nazev+" · kandidátní listina pro volby do zastupitelstev obcí "+tiskTermin(rok))+
     tiskKandTab(st.kand||[])+
-    ((o.programy_2026||{})[programKey(st,i)]?"<div class='tmeta' style='margin-top:6pt'>Volební program: "+esc(o.programy_2026[programKey(st,i)])+"</div>":"")+
-    tiskPata(o)+"</div>");
+    (pr?"<div class='tmeta' style='margin-top:6pt'>Volební program: "+esc(pr)+"</div>":"")+
+    tiskPata(o,rok)+"</div>");
 }
+function tiskTermin(rok){return rok==="2022"?"23.–24. 9. 2022":"9.–10. 10. 2026";}
 // Sestava za obec/mesto: jde o kandidatky, nic jineho se do ni netahne.
-function tiskObecHTML(o){
-  var s26=o.strany_2026||[], flat=o.kandidati_2026||[];
+function tiskObecHTML(o,rok){
+  rok=rok||"2026";
+  var s26=kstrany(o,rok), flat=kjmena(o,rok);
   var pk=s26.length?s26.reduce(function(a,x){return a+((x.kand||[]).length);},0):flat.length;
-  var h="<div class='tobec'>"+tiskHlava(o.nazev+" — kandidátní listiny 2026",
-    "Volby do zastupitelstev obcí 9.–10. 10. 2026 · "+
+  var h="<div class='tobec'>"+tiskHlava(o.nazev+" — kandidátní listiny "+rok,
+    "Volby do zastupitelstev obcí "+tiskTermin(rok)+" · "+
     (s26.length?s26.length+" "+pl(s26.length,"volební strana","volební strany","volebních stran")+" · ":"")+
     pk+" "+pl(pk,"kandidát","kandidáti","kandidátů")+
     (o.pracoviste?" · pracoviště VHOS "+o.pracoviste:""));
-  if(s26.length)h+=s26.map(function(st,i){return tiskStranaSekce(o,st,i);}).join("");
-  else if(flat.length)h+="<div class='tsekce'><h2>Kandidáti 2026</h2><div class='tsloupce'><ul>"+
+  if(s26.length)h+=s26.map(function(st,i){return tiskStranaSekce(o,st,i,rok);}).join("");
+  else if(flat.length)h+="<div class='tsekce'><h2>Kandidáti "+rok+"</h2><div class='tsloupce'><ul>"+
     flat.map(function(x){return "<li>"+esc(x)+"</li>";}).join("")+"</ul></div></div>";
   else h+="<div class='tmeta'>— kandidátky zatím nenačtené —</div>";
-  return h+tiskPata(o)+"</div>";
+  return h+tiskPata(o,rok)+"</div>";
 }
-function tiskObec(o){tiskuj(tiskObecHTML(o));}
+function tiskObec(o){
+  // kdyz obec ma jen kandidatku 2022, tiskni tu
+  var rok=(kstrany(o,"2026").length||kjmena(o,"2026").length)?"2026":"2022";
+  tiskuj(tiskObecHTML(o,rok));
+}
 // Davka: obce se zaskrtnou fajfkou. Nabizi se prave zobrazene obce
 // (hledani + filtry), predvybrane jsou ty s nactenou kandidatkou.
-function maKand(o){return !!((o.strany_2026||[]).length||(o.kandidati_2026||[]).length);}
+function maKand(o,rok){return !!(kstrany(o,rok).length||kjmena(o,rok).length);}
 // Kolik toho na obec vyjede: strany a kandidati dohromady.
-function tiskPopis(o){
-  var ns=(o.strany_2026||[]).length;
-  var nk=(o.strany_2026||[]).reduce(function(a,x){return a+((x.kand||[]).length);},0)||(o.kandidati_2026||[]).length;
+function tiskPopis(o,rok){
+  var ns=kstrany(o,rok).length;
+  var nk=kstrany(o,rok).reduce(function(a,x){return a+((x.kand||[]).length);},0)||kjmena(o,rok).length;
   return (ns?ns+" "+pl(ns,"strana","strany","stran"):"")+
          (nk?(ns?" · ":"")+nk+" "+pl(nk,"kandidát","kandidáti","kandidátů"):"");
 }
@@ -996,25 +1027,32 @@ function tiskPocet(){
   var b=document.getElementById("tsk_go");
   if(b){b.textContent="🖨️ Vytisknout ("+n+")";b.disabled=!n;}
 }
-function tiskVyber(){
+var _TROK="2026";
+function tiskVyber(rok){
   if(!_USER)return;
+  _TROK=(rok==="2022")?"2022":(rok==="2026"?"2026":_TROK);
   var list=filtrObce(fold(document.getElementById("q").value.trim()));
-  var sKand=list.filter(maKand).length;
+  var sKand=list.filter(function(o){return maKand(o,_TROK);}).length;
   document.getElementById("modal").classList.add("show");
-  document.getElementById("mbody").innerHTML="<h2>🖨️ Tisk kandidátek</h2>"+
+  document.getElementById("mbody").innerHTML="<h2>🖨️ Tisk kandidátek "+_TROK+"</h2>"+
+    "<div class='chips' id='tsk_rok'>"+[["2026","Volby 2026"],["2022","Volby 2022"]].map(function(x){
+      return "<button class='chip"+(_TROK===x[0]?" on":"")+"' data-rok='"+x[0]+"'>"+x[1]+"</button>";}).join("")+"</div>"+
     "<div class='stav' style='margin-top:8px'>Ve výběru je <b>"+list.length+"</b> "+pl(list.length,"obec","obce","obcí")+
-    " · s načtenou kandidátkou <b>"+sKand+"</b></div>"+
+    " · s načtenou kandidátkou "+_TROK+" <b>"+sKand+"</b></div>"+
     "<div class='hint' style='margin-top:8px'>Zaškrtni obce, které chceš vytisknout – každá začne na nové stránce. Seznam odpovídá tomu, co je právě vyfiltrované v přehledu.</div>"+
     "<div class='mtools'><button class='btn ghost small' id='tsk_vse'>Vybrat vše</button>"+
     "<button class='btn ghost small' id='tsk_nic'>Zrušit výběr</button></div>"+
     "<div class='tseznam' id='tseznam'>"+(list.length?list.map(function(o){
-      var k=maKand(o);
+      var k=maKand(o,_TROK);
       return "<label"+(k?"":" class='np'")+"><input type='checkbox' data-kod='"+esc(o.kod)+"'"+
         (k?" checked":" disabled")+" /><span>"+esc(o.nazev)+"</span>"+
-        "<span class='tpocet'>"+(k?tiskPopis(o):"bez kandidátky")+"</span></label>";
+        "<span class='tpocet'>"+(k?tiskPopis(o,_TROK):"bez kandidátky "+_TROK)+"</span></label>";
     }).join(""):"<span class='prazdne'>— žádné obce ve výběru —</span>")+"</div>"+
     "<div class='mtools'><button class='btn' id='tsk_go'>🖨️ Vytisknout</button>"+
     "<button class='btn ghost' id='tsk_back'>← Zpět</button></div><div class='msg' id='mmsg'></div>";
+  Array.prototype.forEach.call(document.querySelectorAll("#tsk_rok .chip"),function(b){
+    b.addEventListener("click",function(){tiskVyber(b.getAttribute("data-rok"));});
+  });
   var vsechny=function(){return document.querySelectorAll("#tseznam input:not(:disabled)");};
   document.getElementById("tsk_vse").addEventListener("click",function(){Array.prototype.forEach.call(vsechny(),function(i){i.checked=true;});tiskPocet();});
   document.getElementById("tsk_nic").addEventListener("click",function(){Array.prototype.forEach.call(vsechny(),function(i){i.checked=false;});tiskPocet();});
@@ -1023,7 +1061,7 @@ function tiskVyber(){
   document.getElementById("tsk_go").addEventListener("click",function(){
     var kody=Array.prototype.map.call(document.querySelectorAll("#tseznam input:checked"),function(i){return i.getAttribute("data-kod");});
     if(!kody.length){document.getElementById("mmsg").textContent="Vyber aspoň jednu obec.";return;}
-    tiskuj(kody.map(function(k){var o=obecByKod(k);return o?tiskObecHTML(o):"";}).join(""));
+    tiskuj(kody.map(function(k){var o=obecByKod(k);return o?tiskObecHTML(o,_TROK):"";}).join(""));
   });
   tiskPocet();
 }
@@ -1159,10 +1197,15 @@ function renderModal(){
       det("Úřad",esc(o.email||o.tel||""),viewRow("E-mail",o.email,"email")+viewRow("Telefon",o.tel,"tel")+viewRow("Web",o.web,"web")+viewRow("Adresa",o.adresa)+"<div class='r'><b>VF (fakturace)</b><span>"+vfList(o.vf)+"</span></div>",false)+
       det("Účetní",pz(o.ucetni),viewRow("Telefon",o.ucetni_tel,"tel")+viewRow("E-mail",o.ucetni_email,"email"),false)+
       det("Zastupitelstvo"+(z22.length?" ("+z22.length+")":""),"",zastList(z22,"— k doplnění —"),false);
-    var v22=o.vysledky_2022;
+    var v22=o.vysledky_2022, s22=kstrany(o,"2022"), k22=kjmena(o,"2022");
     body+="<div class='sekce'>Volby 2022 <span class='obd'>· z čeho vzešlo zastupitelstvo</span></div>"+
       det("Výsledky voleb 2022"+((v22&&v22.strany)?" ("+v22.strany.length+")":""),
-        secPencil("vysledky"),vysledkyHTML(o),fKdo==="2022");
+        secPencil("vysledky"),vysledkyHTML(o),fKdo==="2022"&&!s22.length);
+    if(s22.length||k22.length)
+      body+=det("Kandidátky 2022 ("+(function(){
+        return (s22.length?s22.length+" "+pl(s22.length,"strana","strany","stran"):"")+
+          (k22.length?(s22.length?" / ":"")+k22.length+" "+pl(k22.length,"kandidát","kandidáti","kandidátů"):"");})()+")",
+        "",kandListHTML(o,"2022"),fKdo==="2022"&&(!!_Q||_OPENKAND));
     var k26=o.kandidati_2026||[], s26=o.strany_2026||[];
     // rozbalit i při hledání, když dotaz sedí jen na kandidáta – jinak by
     // zvýraznění zůstalo schované v zabalené sekci
@@ -1210,7 +1253,7 @@ function renderModal(){
     document.getElementById("mapBtn").addEventListener("click",function(){focusObec(o.kod);});
     document.getElementById("tiskObecBtn").addEventListener("click",function(){tiskObec(o);});
     Array.prototype.forEach.call(document.querySelectorAll("#mbody .tiskstr"),function(el){
-      el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();tiskStrana(o,+el.getAttribute("data-i"));});
+      el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();tiskStrana(o,+el.getAttribute("data-i"),el.getAttribute("data-rok"));});
     });
   }
 }
@@ -2353,10 +2396,11 @@ function kandBuild(){
 }
 
 /* ---- okno importu ---- */
-function kandStat(){
-  var s=OBCE.filter(function(o){return (o.kandidati_2026||[]).length||(o.strany_2026||[]).length;});
-  var k=s.reduce(function(a,o){return a+(o.kandidati_2026||[]).length;},0);
-  var st=s.reduce(function(a,o){return a+(o.strany_2026||[]).length;},0);
+function kandStat(rok){
+  rok=rok||"2026";
+  var s=OBCE.filter(function(o){return kjmena(o,rok).length||kstrany(o,rok).length;});
+  var k=s.reduce(function(a,o){return a+kjmena(o,rok).length;},0);
+  var st=s.reduce(function(a,o){return a+kstrany(o,rok).length;},0);
   return {obci:s.length,kand:k,strany:st};
 }
 function kandMsg(m){var e=document.getElementById("mmsg");if(e)e.innerHTML=m;}
@@ -2524,19 +2568,26 @@ function onAcFile(ev){
   fr.onerror=function(){acMsg("⚠️ Soubor se nepodařilo otevřít.");};
   fr.readAsText(f,"utf-8");
 }
-function kandOpen(){
+function kandOpen(rok){
   if(!_USER)return;
+  _KROK=(rok==="2022")?"2022":"2026";
   _kandFiles=[];_kandPre=null;
-  var st=kandStat();
+  var st=kandStat(_KROK);
+  var prep=[["2026","Volby 2026"],["2022","Volby 2022"]].map(function(x){
+    return "<button class='chip"+(_KROK===x[0]?" on":"")+"' data-rok='"+x[0]+"'>"+x[1]+"</button>";}).join("");
   document.getElementById("modal").classList.add("show");
-  document.getElementById("mbody").innerHTML="<h2>🗳️ Kandidátky pro volby 2026</h2>"+
+  document.getElementById("mbody").innerHTML="<h2>🗳️ Kandidátky pro volby "+_KROK+"</h2>"+
+    "<div class='chips' id='kd_rok'>"+prep+"</div>"+
     "<div class='stav' style='margin-top:8px'>"+(st.obci
       ? "Načteno u <b>"+st.obci+"</b> "+pl(st.obci,"obce","obcí","obcí")+" · <b>"+st.strany+"</b> "+pl(st.strany,"volební strana","volební strany","volebních stran")+
         (st.kand?" · <b>"+st.kand+"</b> "+pl(st.kand,"kandidát","kandidáti","kandidátů"):" · zatím bez jmen kandidátů")
       : "Kandidátky zatím nejsou načtené.")+"</div>"+
     "<div class='hint' style='margin-top:10px'><b>Odkud vzít data za celý okres naráz:</b> "+
-    "<a href='https://volby.gov.cz/opendata/opendata.htm' target='_blank' rel='noopener'>volby.gov.cz/opendata</a> → "+
-    "volby do zastupitelstev obcí 2026 → <b>Registry – zip balíky</b> → <b>CSV (CSVW)</b> (nebo Excel, XML, JSON – je to jedno). "+
+    (_KROK==="2022"
+      ? "<a href='https://www.volby.cz/opendata/kv2022/kv2022_opendata.htm' target='_blank' rel='noopener'>volby.cz/opendata – KV2022</a> → "+
+        "číselníky a registry kandidátních listin (CSV, XML). "
+      : "<a href='https://volby.gov.cz/opendata/opendata.htm' target='_blank' rel='noopener'>volby.gov.cz/opendata</a> → "+
+        "volby do zastupitelstev obcí 2026 → <b>Registry – zip balíky</b> → <b>CSV (CSVW)</b> (nebo Excel, XML, JSON – je to jedno). ")+
     "Stažený <b>.zip</b> nahraj sem rovnou, apka si ho rozbalí, najde v něm kandidáty a volební strany, zbytek balíku "+
     "(číselníky, popisy) přeskočí a okres Svitavy vybere podle našich obcí.</div>"+
     "<div class='hint'>Tabulka <i>Jmenné seznamy a přehledy</i> na to není – bez vybraného zastupitelstva data nezobrazí, "+
@@ -2560,6 +2611,9 @@ function kandOpen(){
     (st.obci?"<button class='btn ghost' id='kd_del'>🗑 Smazat načtené kandidátky</button>":"")+
     "<button class='btn ghost' id='kd_back'>← Zpět</button></div>"+
     "<div id='kd_body'></div><div class='msg' id='mmsg'></div>";
+  Array.prototype.forEach.call(document.querySelectorAll("#kd_rok .chip"),function(b){
+    b.addEventListener("click",function(){kandOpen(b.getAttribute("data-rok"));});
+  });
   document.getElementById("kd_file").addEventListener("click",function(){document.getElementById("kandFile").click();});
   document.getElementById("kd_get").addEventListener("click",kandFetchUrl);
   document.getElementById("kd_pastego").addEventListener("click",function(){
@@ -2672,7 +2726,7 @@ function kandPreview(){
     Object.keys(P.byKod).forEach(function(kod){
       var o=ourKod[kod];
       var sloty=[];
-      P.byKod[kod].strany.forEach(function(st){(st.kand||[]).forEach(function(k){sloty.push([kandRole(st,k),k.jmeno,"2026"]);});});
+      P.byKod[kod].strany.forEach(function(st){(st.kand||[]).forEach(function(k){sloty.push([kandRole(st,k),k.jmeno,_KROK]);});});
       hits=hits.concat(collectHits(sloty,{kod:kod,nazev:o.nazev}));
     });
     hits=hits.filter(function(h){return h.typ==="jista";})
@@ -2718,38 +2772,39 @@ function kandSave(){
   var P=_kandPre, ts=Date.now(), upd={}, n=0;
   Object.keys(P.byKod).forEach(function(kod){
     var d=P.byKod[kod];
-    upd["volby_obce/"+kod+"/strany_2026"]=d.strany;
-    upd["volby_obce/"+kod+"/kandidati_2026"]=d.kand.length?d.kand:null;
-    upd["volby_obce/"+kod+"/pocet_kand_2026"]=d.kand.length;
-    upd["volby_obce/"+kod+"/pocet_stran_2026"]=d.strany.length;
-    upd["volby_obce/"+kod+"/kandidatky_zdroj"]="volby.cz – registrované kandidátní listiny 2026";
-    upd["volby_obce/"+kod+"/kandidatky_ts"]=ts;
-    upd["volby_obce/"+kod+"/kandidatky_kdo"]=_USER.email;
+    upd["volby_obce/"+kod+"/"+kpole(_KROK,"strany")]=d.strany;
+    upd["volby_obce/"+kod+"/"+kpole(_KROK,"kand")]=d.kand.length?d.kand:null;
+    upd["volby_obce/"+kod+"/"+kpole(_KROK,"pk")]=d.kand.length;
+    upd["volby_obce/"+kod+"/"+kpole(_KROK,"ps")]=d.strany.length;
+    upd["volby_obce/"+kod+"/"+kpole(_KROK,"zdroj")]="volby.cz – kandidátní listiny "+_KROK;
+    upd["volby_obce/"+kod+"/"+kpole(_KROK,"ts")]=ts;
+    upd["volby_obce/"+kod+"/"+kpole(_KROK,"kdo")]=_USER.email;
     n++;
   });
-  if(!window.confirm("Uložit pro "+n+" obcí "+P.stat.strany+" volebních stran"+(P.stat.kand?" a "+P.stat.kand+" kandidátů":" (bez jmen kandidátů)")+"?\nPřepíše se tím dřív načtená kandidátka 2026, kontakty a zastupitelstvo 2022–2026 zůstanou beze změny."))return;
+  if(!window.confirm("Uložit pro "+n+" obcí "+P.stat.strany+" volebních stran"+(P.stat.kand?" a "+P.stat.kand+" kandidátů":" (bez jmen kandidátů)")+"?\nPřepíše se tím dřív načtená kandidátka "+_KROK+", ostatní data zůstanou beze změny."))return;
   kandMsg("Zapisuji do Firebase…");
   FDB.ref().update(upd).then(function(){
     document.getElementById("modal").classList.remove("show");
   }).catch(function(e){kandMsg("⚠️ Uložení selhalo: "+esc(e&&e.message?e.message:String(e)));});
 }
 function kandClear(){
-  if(!window.confirm("Smazat načtené kandidátky 2026 u všech obcí?"))return;
-  var upd={};
+  if(!window.confirm("Smazat načtené kandidátky "+_KROK+" u všech obcí?"))return;
+  var upd={}, rok=_KROK;
   OBCE.forEach(function(o){
-    ["strany_2026","kandidati_2026","pocet_kand_2026","pocet_stran_2026","kandidatky_zdroj","kandidatky_ts","kandidatky_kdo"]
-      .forEach(function(f){upd["volby_obce/"+o.kod+"/"+f]=null;});
+    ["strany","kand","pk","ps","zdroj","ts","kdo"]
+      .forEach(function(f){upd["volby_obce/"+o.kod+"/"+kpole(rok,f)]=null;});
   });
   kandMsg("Mažu…");
-  FDB.ref().update(upd).then(function(){kandOpen();})
+  FDB.ref().update(upd).then(function(){kandOpen(rok);})
     .catch(function(e){kandMsg("⚠️ "+esc(e&&e.message?e.message:String(e)));});
 }
 
 /* ---- výpis kandidátky v detailu obce ---- */
-function kandListHTML(o){
-  var strany=o.strany_2026||[];
+function kandListHTML(o,rok){
+  rok=rok||"2026";
+  var strany=kstrany(o,rok);
   if(!strany.length){
-    var flat=o.kandidati_2026||[];
+    var flat=kjmena(o,rok);
     return flat.length?listUL(flat):"<span class='prazdne'>— zatím nenačteno —</span>";
   }
   return strany.map(function(s,i){
@@ -2758,7 +2813,7 @@ function kandListHTML(o){
       "<span>"+hl(s.nazev||"(bez názvu)",_Q)+"</span>"+
       (s.typ?"<span class='b'>"+esc(s.typ)+"</span>":"")+
       "<span class='kpocet'>"+kand.length+" "+pl(kand.length,"kandidát","kandidáti","kandidátů")+
-      " <span class='tiskstr' data-i='"+i+"' title='Tisková sestava strany'>\ud83d\udda8\ufe0f</span></span></div>"+
+      " <span class='tiskstr' data-i='"+i+"' data-rok='"+rok+"' title='Tisková sestava strany'>\ud83d\udda8\ufe0f</span></span></div>"+
       (kand.length?"<ol class='zast'>"+kand.map(function(k){
         var dt=[k.vek?k.vek+" let":"",k.pov||"",k.ps||"",k.byd?"bydliště "+k.byd:""].filter(Boolean).join(" · ");
         return "<li"+(k.p?" value='"+k.p+"'":"")+">"+(k.tp?"<span class='kdet'>"+esc(k.tp)+"</span> ":"")+hl(k.jmeno,_Q)+
@@ -2866,7 +2921,8 @@ function runImport(K, SV, log){
 }
 document.getElementById("importIM").addEventListener("click",importIM);
 document.getElementById("kontrolaVHOS").addEventListener("click",function(){showView("zam");initProv();window.scrollTo(0,0);});
-document.getElementById("kandidatky").addEventListener("click",kandOpen);
+document.getElementById("kandidatky").addEventListener("click",function(){kandOpen("2026");});
+document.getElementById("kandidatky22").addEventListener("click",function(){kandOpen("2022");});
 document.getElementById("tiskBtn").addEventListener("click",tiskVyber);
 document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
