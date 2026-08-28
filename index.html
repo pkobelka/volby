@@ -2126,6 +2126,8 @@ document.getElementById("zamFile").addEventListener("change",onZamFile);
    ručně, rozpadne se po obcích a zapíše do Firebase (uzel volby_obce).
    Do repozitáře se žádná data neukládají – stejně jako u kontaktů a zaměstnanců. */
 var _kandFiles=[], _kandPre=null;
+// XML za cely okres Svitavy (obce -> volebni strany -> kandidati i s hlasy)
+var KV2022_OKRES="https://volby.gov.cz/pls/kv2022/vysledky_obce_okres?datumvoleb=20220923&nuts=CZ0533";
 
 // pole, která z kandidátky potřebujeme; ke každému názvy sloupců, jak je píše volby.cz
 var KPOLE=[
@@ -2746,8 +2748,9 @@ function kandOpen(rok){
     "<div class='hint' style='margin-top:10px'><b>Odkud vzít data za celý okres naráz:</b> "+
     (_KROK==="2022"
       ? "<a href='https://www.volby.cz/opendata/kv2022/kv2022_opendata.htm' target='_blank' rel='noopener'>volby.cz/opendata – KV2022</a> → "+
-        "<b>Obce – XML data – výsledky za okresy a obce</b>; do adresy dosaď <b>nuts=CZ0533</b> (okres Svitavy) a "+
-        "<b>datumvoleb=20220923</b> – v jednom souboru je celý okres i s hlasy pro kandidáty. "
+        "<b>Obce – XML data – výsledky za okresy a obce</b> – v jednom souboru je celý okres i s hlasy pro kandidáty:<br>"+
+        "<a href='"+KV2022_OKRES+"' target='_blank' rel='noopener'>"+esc(KV2022_OKRES)+"</a><br>"+
+        "(<b>nuts=CZ0533</b> je okres Svitavy, <b>datumvoleb=20220923</b> termín voleb – adresa je níž předvyplněná). "
       : "<a href='https://volby.gov.cz/opendata/opendata.htm' target='_blank' rel='noopener'>volby.gov.cz/opendata</a> → "+
         "volby do zastupitelstev obcí 2026 → <b>Registry – zip balíky</b> → <b>CSV (CSVW)</b> (nebo Excel, XML, JSON – je to jedno). ")+
     "Stažený <b>.zip</b> nahraj sem rovnou, apka si ho rozbalí, najde v něm kandidáty a volební strany, zbytek balíku "+
@@ -2760,7 +2763,7 @@ function kandOpen(rok){
     "<div class='zamwarn'>Soubor se nikam neposílá – přečte se v prohlížeči a uloží se jen to, co patří našim obcím, do Firebase za přihlášením.</div>"+
     "<div class='r' style='display:block;margin-top:10px'><b>Nebo rovnou z adresy</b>"+
     "<div style='display:flex;gap:8px;flex-wrap:wrap;margin-top:6px'>"+
-    "<input id='kd_url' style='flex:1;min-width:220px' placeholder='https://volby.gov.cz/… (odkaz na data, ne na stránku)' />"+
+    "<input id='kd_url' style='flex:1;min-width:220px' value=\""+(_KROK==="2022"?esc(KV2022_OKRES):"")+"\" placeholder='https://volby.gov.cz/… (odkaz na data, ne na stránku)' />"+
     "<button class='btn ghost' id='kd_get'>🌐 Stáhnout</button></div></div>"+
     "<div class='hint'>Stahuje tvůj prohlížeč, ne server – takže to projde jen u adres, které stahování z cizí stránky povolují. "+
     "Když prohlížeč odmítne, ulož si soubor na disk a nahraj ho tlačítkem níž.</div>"+
@@ -3092,7 +3095,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-28 · v40 (import kandidátek 2022 za celý okres z XML volby.cz, hlasy a mandát u kandidáta)";
+var VERZE="2026-08-28 · v41 (import 2022: adresa XML za celý okres předvyplněná)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
