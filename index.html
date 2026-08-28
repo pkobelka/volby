@@ -132,6 +132,10 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 .kstr .kc{background:var(--zelena);color:#fff;border-radius:6px;padding:1px 7px;font-size:.78rem;font-weight:700;}
 .kstr .kpocet{margin-left:auto;font-weight:400;color:#8a8272;font-size:.78rem;}
 .kstr .tiskstr{cursor:pointer;margin-left:4px;}
+.tseznam{max-height:44vh;overflow:auto;border:1px solid var(--sedaramecek);border-radius:8px;background:#fff;padding:6px 10px;margin-top:8px;}
+.tseznam label{display:flex;gap:8px;align-items:center;padding:3px 0;font-size:.92rem;cursor:pointer;}
+.tseznam label.np{color:#a9a292;cursor:default;}
+.tseznam .tpocet{margin-left:auto;color:#8a8272;font-size:.78rem;}
 .kstr ol{margin:6px 0 0;padding-left:26px;font-size:.9rem;}
 .kstr ol li{margin:3px 0;}
 .kstr .kdet{color:#8a8272;font-size:.78rem;}
@@ -955,14 +959,51 @@ function tiskObecHTML(o){
   return h+tiskPata(o)+"</div>";
 }
 function tiskObec(o){tiskuj(tiskObecHTML(o));}
-// Davka: prave zobrazene obce (hledani + filtry), jen ty s kandidatkou.
+// Davka: obce se zaskrtnou fajfkou. Nabizi se prave zobrazene obce
+// (hledani + filtry), predvybrane jsou ty s nactenou kandidatkou.
+function maKand(o){return !!((o.strany_2026||[]).length||(o.kandidati_2026||[]).length);}
+// Kolik toho na obec vyjede: strany a kandidati dohromady.
+function tiskPopis(o){
+  var ns=(o.strany_2026||[]).length;
+  var nk=(o.strany_2026||[]).reduce(function(a,x){return a+((x.kand||[]).length);},0)||(o.kandidati_2026||[]).length;
+  return (ns?ns+" "+pl(ns,"strana","strany","stran"):"")+
+         (nk?(ns?" · ":"")+nk+" "+pl(nk,"kandidát","kandidáti","kandidátů"):"");
+}
+function tiskPocet(){
+  var n=document.querySelectorAll("#tseznam input:checked").length;
+  var b=document.getElementById("tsk_go");
+  if(b){b.textContent="🖨️ Vytisknout ("+n+")";b.disabled=!n;}
+}
 function tiskVyber(){
-  var list=filtrObce(fold(document.getElementById("q").value.trim()))
-    .filter(function(o){return (o.strany_2026||[]).length||(o.kandidati_2026||[]).length;});
-  var msg=document.getElementById("importMsg");
-  if(!list.length){if(msg)msg.textContent="⚠️ Ve výběru není žádná obec s načtenou kandidátkou 2026.";return;}
-  if(msg)msg.textContent="🖨️ Sestava za "+list.length+" "+pl(list.length,"obec","obce","obcí")+" – otevírá se tisk.";
-  tiskuj(list.map(tiskObecHTML).join(""));
+  if(!_USER)return;
+  var list=filtrObce(fold(document.getElementById("q").value.trim()));
+  var sKand=list.filter(maKand).length;
+  document.getElementById("modal").classList.add("show");
+  document.getElementById("mbody").innerHTML="<h2>🖨️ Tisk kandidátek</h2>"+
+    "<div class='stav' style='margin-top:8px'>Ve výběru je <b>"+list.length+"</b> "+pl(list.length,"obec","obce","obcí")+
+    " · s načtenou kandidátkou <b>"+sKand+"</b></div>"+
+    "<div class='hint' style='margin-top:8px'>Zaškrtni obce, které chceš vytisknout – každá začne na nové stránce. Seznam odpovídá tomu, co je právě vyfiltrované v přehledu.</div>"+
+    "<div class='mtools'><button class='btn ghost small' id='tsk_vse'>Vybrat vše</button>"+
+    "<button class='btn ghost small' id='tsk_nic'>Zrušit výběr</button></div>"+
+    "<div class='tseznam' id='tseznam'>"+(list.length?list.map(function(o){
+      var k=maKand(o);
+      return "<label"+(k?"":" class='np'")+"><input type='checkbox' data-kod='"+esc(o.kod)+"'"+
+        (k?" checked":" disabled")+" /><span>"+esc(o.nazev)+"</span>"+
+        "<span class='tpocet'>"+(k?tiskPopis(o):"bez kandidátky")+"</span></label>";
+    }).join(""):"<span class='prazdne'>— žádné obce ve výběru —</span>")+"</div>"+
+    "<div class='mtools'><button class='btn' id='tsk_go'>🖨️ Vytisknout</button>"+
+    "<button class='btn ghost' id='tsk_back'>← Zpět</button></div><div class='msg' id='mmsg'></div>";
+  var vsechny=function(){return document.querySelectorAll("#tseznam input:not(:disabled)");};
+  document.getElementById("tsk_vse").addEventListener("click",function(){Array.prototype.forEach.call(vsechny(),function(i){i.checked=true;});tiskPocet();});
+  document.getElementById("tsk_nic").addEventListener("click",function(){Array.prototype.forEach.call(vsechny(),function(i){i.checked=false;});tiskPocet();});
+  Array.prototype.forEach.call(vsechny(),function(i){i.addEventListener("change",tiskPocet);});
+  document.getElementById("tsk_back").addEventListener("click",function(){document.getElementById("modal").classList.remove("show");});
+  document.getElementById("tsk_go").addEventListener("click",function(){
+    var kody=Array.prototype.map.call(document.querySelectorAll("#tseznam input:checked"),function(i){return i.getAttribute("data-kod");});
+    if(!kody.length){document.getElementById("mmsg").textContent="Vyber aspoň jednu obec.";return;}
+    tiskuj(kody.map(function(k){var o=obecByKod(k);return o?tiskObecHTML(o):"";}).join(""));
+  });
+  tiskPocet();
 }
 function renderModal(){
   var o=_CUR;var z22=o.zastupitelstvo||[], z26=o.zastupitelstvo_2026||[];
@@ -997,7 +1038,10 @@ function renderModal(){
     if(k26.length||s26.length) body+="<div class='sekce'>Volby 2026 <span class='obd'>· období 2026–2030</span></div>"+
       det("Kandidátky ("+(function(){var n=s26.length||o.pocet_stran_2026||0;
         return (n?n+" "+pl(n,"strana","strany","stran"):"")+(k26.length?(n?" / ":"")+k26.length+" "+pl(k26.length,"kandidát","kandidáti","kandidátů"):"");})()+")","",kandListHTML(o),otevritKand);
-    if(k26.length||s26.length) body+=det("Volební programy",secPencil("programy"),programyHTML(o),false);
+    // Rozcestnik na programy dava smysl i pred nactenim kandidatek – proto
+    // se sekce ukazuje vzdy (bez kandidatky uvnitr jen odkazy za obec).
+    if(!(k26.length||s26.length)) body+="<div class='sekce'>Volby 2026 <span class='obd'>· období 2026–2030</span></div>";
+    body+=det("Volební programy",secPencil("programy"),programyHTML(o),false);
     if(o.rada&&o.rada.length) body+=det("Městská rada ("+o.rada.length+")","",listUL(o.rada),false);
     if(o.terminy&&o.terminy.length) body+=det("Termíny zastupitelstev","",listCal(o.terminy,"Zastupitelstvo "+o.nazev,o.nazev),false);
     body+=det("Poznámky",secPencil("poznamky"),(o.poznamky?"<div class='r'><span class='pozn'>"+hl(o.poznamky,_Q)+"</span></div>":"<span class='prazdne'>— žádné (ťukni ✏️) —</span>"),false);
