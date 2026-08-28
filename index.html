@@ -256,6 +256,8 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <button class="btn ghost small" id="kontrolaVHOS">🔎 Kontrola VHOS</button>
 <button class="btn ghost small" id="kandidatky">🗳️ Kandidátky 2026</button>
 <button class="btn ghost small" id="tiskBtn">🖨️ Tisk kandidátek</button>
+<button class="btn ghost small" id="acBtn">💧 Porovnat s AquaControl</button>
+<input type="file" id="acFile" accept=".xlsx,.xlsm,.xlsb,.xls,.csv,.txt,.tsv" style="display:none" />
 <input type="file" id="importFile" accept=".json,application/json" multiple style="display:none" />
 <input type="file" id="kandFile" accept=".zip,.csv,.txt,.tsv,.xml,.json,.html,.htm,.xlsx,.xls" multiple style="display:none" />
 <div class="msg" id="importMsg" style="text-align:center"></div>
@@ -2188,6 +2190,133 @@ function kandStat(){
   return {obci:s.length,kand:k,strany:st};
 }
 function kandMsg(m){var e=document.getElementById("mmsg");if(e)e.innerHTML=m;}
+/* ---- Porovnani s AquaControl ---------------------------------------
+   Do AquaControlu apka nevidi, takze se sem vlozi jeho export (Excel,
+   CSV nebo jen sloupec ze schranky) se seznamem provozovanych obci a
+   apka ukaze rozdily proti nasemu priznaku "provozovano". Tlacitko u
+   radku opravi Firebase hned; trvala oprava patri do hranice.json,
+   ktery je pri importu kontaktu zdroj pravdy pro strukturni pole. */
+var _ACres=null;
+function acMsg(m){var e=document.getElementById("mmsg");if(e)e.innerHTML=m;}
+// Z bunky exportu vytahni neco, co muze byt nazev obce nebo jeji kod.
+function acKlic(x){
+  var t=String(x||"").trim();
+  if(!t)return "";
+  t=t.replace(/\(.*?\)/g," ").split(/\s[-–]\s/)[0];
+  t=t.replace(/^(obec|obce|m[ěe]sto|m[ěe]stys|vodovod|v[ée]tev|VDJ|[ÚU]V|[ČC]S)\s+/i,"");
+  t=t.replace(/[;,.:]+$/,"").replace(/\s+/g," ").trim();
+  if(/^\d+$/.test(t))return t.length===6?t:"";
+  return t.length<3?"":t;
+}
+function acNajdi(f){
+  if(/^\d{6}$/.test(f))return obecByKod(f)?f:null;
+  return obecKodByName(f);
+}
+function acParse(text){
+  var mapa={}, ne=[];
+  String(text||"").split(/\r?\n/).forEach(function(r){
+    r=r.trim();if(!r)return;
+    var pole=r.split(/\t|;|\||,/).map(acKlic).filter(Boolean);
+    if(!pole.length)return;
+    var kod=null;
+    for(var i=0;i<pole.length&&!kod;i++)kod=acNajdi(pole[i]);
+    if(kod)mapa[kod]=r; else ne.push(r);
+  });
+  return {mapa:mapa,ne:ne};
+}
+function acRadek(o,doProvoz){
+  return "<div class='r'><b>"+esc(o.nazev)+"</b><span>"+
+    (o.okres!=="Svitavy"?"<span class='b np'>okres "+esc(o.okres||"?")+"</span> ":"")+
+    (o.pracoviste?"<span class='b prac'>"+esc(o.pracoviste)+"</span> ":"")+
+    "<button class='btn ghost small acset' data-kod='"+esc(o.kod)+"' data-p='"+(doProvoz?"1":"0")+"'>"+
+    (doProvoz?"✓ označit jako provozované":"✕ označit jako neprovozované")+"</button></span></div>";
+}
+function acPorovnej(){
+  var t=(document.getElementById("ac_text").value||"").trim();
+  if(!t){acMsg("⚠️ Nejdřív vlož seznam z AquaControlu.");return;}
+  var r=acParse(t), mapa=r.mapa;
+  var vAC=[],chybiVAC=[],sedi=0;
+  OBCE.forEach(function(o){
+    var je=!!mapa[o.kod];
+    if(je&&!o.provozovano)vAC.push(o);
+    else if(!je&&o.provozovano)chybiVAC.push(o);
+    else sedi++;
+  });
+  _ACres={vAC:vAC,chybi:chybiVAC};
+  var h="<div class='stav'>Spárováno <b>"+Object.keys(mapa).length+"</b> "+pl(Object.keys(mapa).length,"obec","obce","obcí")+
+    " z AquaControlu · sedí <b>"+sedi+"</b> · rozdílů <b>"+(vAC.length+chybiVAC.length)+"</b>"+
+    (r.ne.length?" · nespárováno řádků <b>"+r.ne.length+"</b>":"")+"</div>";
+  h+="<div class='sekce'>V AquaControlu, ale u nás neprovozované ("+vAC.length+")</div>"+
+    (vAC.length?vAC.map(function(o){return acRadek(o,true);}).join(""):"<span class='prazdne'>— žádná —</span>");
+  h+="<div class='sekce'>U nás provozované, ale v AquaControlu nejsou ("+chybiVAC.length+")</div>"+
+    (chybiVAC.length?chybiVAC.map(function(o){return acRadek(o,false);}).join(""):"<span class='prazdne'>— žádná —</span>");
+  if(r.ne.length)h+="<div class='sekce'>Řádky bez shody s obcí ("+r.ne.length+")</div>"+
+    "<div class='hint'>Nejspíš hlavička, objekt (VDJ, ÚV) nebo obec mimo náš seznam.</div>"+
+    "<ul class='zast'>"+r.ne.slice(0,40).map(function(x){return "<li>"+esc(x)+"</li>";}).join("")+"</ul>"+
+    (r.ne.length>40?"<div class='hint'>… a další ("+(r.ne.length-40)+")</div>":"");
+  if(vAC.length||chybiVAC.length)h+="<div class='mtools'><button class='btn ghost' id='ac_kopie'>📋 Zkopírovat opravy pro hranice.json</button></div>"+
+    "<div class='hint'>Tlačítka u řádků opraví data hned (Firebase). Aby oprava vydržela i po importu kontaktů, patří stejná změna do <b>hranice.json</b> – ten je zdroj pravdy.</div>";
+  document.getElementById("ac_vysledek").innerHTML=h;
+  Array.prototype.forEach.call(document.querySelectorAll("#ac_vysledek .acset"),function(b){
+    b.addEventListener("click",function(){acNastav(b.getAttribute("data-kod"),b.getAttribute("data-p")==="1",b);});
+  });
+  var kop=document.getElementById("ac_kopie");
+  if(kop)kop.addEventListener("click",function(){
+    var txt=_ACres.vAC.map(function(o){return '{"kod":"'+o.kod+'","nazev":"'+o.nazev+'","provozovano":true}';})
+      .concat(_ACres.chybi.map(function(o){return '{"kod":"'+o.kod+'","nazev":"'+o.nazev+'","provozovano":false}';})).join("\n");
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(function(){acMsg("Zkopírováno.");},function(){acMsg("<pre>"+esc(txt)+"</pre>");});
+    else acMsg("<pre>"+esc(txt)+"</pre>");
+  });
+  acMsg("");
+}
+function acNastav(kod,provoz,btn){
+  var o=obecByKod(kod);if(!o)return;
+  btn.disabled=true;acMsg("Ukládám…");
+  FDB.ref("volby_obce/"+kod).update({provozovano:!!provoz,upravil:_USER.email,upravil_ts:Date.now()})
+    .then(function(){o.provozovano=!!provoz;acMsg("✔ "+esc(o.nazev)+" – "+(provoz?"provozované":"neprovozované")+" (nezapomeň na hranice.json).");acPorovnej();})
+    .catch(function(e){btn.disabled=false;acMsg("⚠️ "+esc(e&&e.message?e.message:String(e)));});
+}
+function acOpen(){
+  if(!_USER)return;
+  var np=OBCE.filter(function(o){return !o.provozovano;}).length;
+  document.getElementById("modal").classList.add("show");
+  document.getElementById("mbody").innerHTML="<h2>💧 Porovnání s AquaControlem</h2>"+
+    "<div class='stav' style='margin-top:8px'>Teď máme <b>"+(OBCE.length-np)+"</b> provozovaných a <b>"+np+"</b> neprovozovaných obcí.</div>"+
+    "<div class='hint' style='margin-top:10px'>Z AquaControlu vyexportuj (nebo označ a Ctrl+C) <b>seznam provozovaných obcí</b> – stačí sloupec s názvem obce, klidně i s kódem obce nebo dalšími sloupci. Vlož ho sem, apka si názvy spáruje s našimi obcemi a ukáže rozdíly.</div>"+
+    "<div class='zamwarn'>Soubor se nikam neposílá – čte se v prohlížeči.</div>"+
+    "<div class='r' style='display:block;margin-top:10px'><textarea id='ac_text' rows='8' placeholder='Kladky\nKrasíkov\n…  (jedna obec na řádek, nebo sloupce z Excelu)'></textarea></div>"+
+    "<div class='mtools'><button class='btn' id='ac_go'>🔎 Porovnat</button>"+
+    "<button class='btn ghost' id='ac_file'>⬆️ Načíst ze souboru</button>"+
+    "<button class='btn ghost' id='ac_back'>← Zpět</button></div>"+
+    "<div id='ac_vysledek'></div><div class='msg' id='mmsg'></div>";
+  document.getElementById("ac_go").addEventListener("click",acPorovnej);
+  document.getElementById("ac_file").addEventListener("click",function(){document.getElementById("acFile").click();});
+  document.getElementById("ac_back").addEventListener("click",function(){document.getElementById("modal").classList.remove("show");});
+}
+function onAcFile(ev){
+  var f=(ev.target.files||[])[0];ev.target.value="";
+  if(!f)return;
+  var vloz=function(t){var el=document.getElementById("ac_text");if(el){el.value=t;acPorovnej();}};
+  if(/\.(xlsx|xlsm|xlsb|xls)$/i.test(f.name)){
+    acMsg("Načítám Excel…");
+    loadXLSX().then(function(){
+      var fr=new FileReader();
+      fr.onload=function(){
+        try{var r=xlsxToText(fr.result);
+          if(!r.text.trim()){acMsg("⚠️ List <b>"+esc(r.list)+"</b> je prázdný.");return;}
+          vloz(r.text);
+        }catch(e){acMsg("⚠️ Excel se nepodařilo přečíst: "+esc(e&&e.message?e.message:String(e)));}
+      };
+      fr.onerror=function(){acMsg("⚠️ Soubor se nepodařilo otevřít.");};
+      fr.readAsArrayBuffer(f);
+    }).catch(function(e){acMsg("⚠️ "+esc(e&&e.message?e.message:String(e)));});
+    return;
+  }
+  var fr=new FileReader();
+  fr.onload=function(){vloz(String(fr.result||""));};
+  fr.onerror=function(){acMsg("⚠️ Soubor se nepodařilo otevřít.");};
+  fr.readAsText(f,"utf-8");
+}
 function kandOpen(){
   if(!_USER)return;
   _kandFiles=[];_kandPre=null;
@@ -2532,6 +2661,8 @@ document.getElementById("importIM").addEventListener("click",importIM);
 document.getElementById("kontrolaVHOS").addEventListener("click",function(){showView("zam");initProv();window.scrollTo(0,0);});
 document.getElementById("kandidatky").addEventListener("click",kandOpen);
 document.getElementById("tiskBtn").addEventListener("click",tiskVyber);
+document.getElementById("acBtn").addEventListener("click",acOpen);
+document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
 var VERZE="2026-08-26 · v36 (volba složky nahoře: zastupitelstva 2022–2026 vs. kandidátky 2026)";
