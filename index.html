@@ -900,7 +900,7 @@ function tiskHlava(nadpis,podnadpis){
 function tiskPata(o){
   return "<div class='tpata'>Kandidátky: "+esc((o&&o.kandidatky_zdroj)||"volby.gov.cz")+
     (o&&o.kandidatky_ts?" ("+new Date(o.kandidatky_ts).toLocaleDateString("cs")+")":"")+
-    " · zastupitelstvo 2022–2026: volby.cz KV2022 · vytištěno "+new Date().toLocaleDateString("cs")+
+    " · vytištěno "+new Date().toLocaleDateString("cs")+
     " z aplikace Volby 2026 (VHOS)</div>";
 }
 function tiskJmeno(k){
@@ -934,30 +934,19 @@ function tiskStrana(o,i){
     ((o.programy_2026||{})[programKey(st,i)]?"<div class='tmeta' style='margin-top:6pt'>Volební program: "+esc(o.programy_2026[programKey(st,i)])+"</div>":"")+
     tiskPata(o)+"</div>");
 }
-function tiskKontaktyTab(o){
-  var r=[["Starosta",[o.starosta,o.starosta_tel,o.starosta_email].filter(Boolean).join(" · ")],
-         ["Místostarosta",[o.mistostarosta,o.mistostarosta_tel,o.mistostarosta_email].filter(Boolean).join(" · ")],
-         ["Úřad",[o.email,o.tel,o.web].filter(Boolean).join(" · ")]].filter(function(x){return x[1];});
-  if(!r.length)return "";
-  return "<table><tbody>"+r.map(function(x){return "<tr><th style='width:22%'>"+esc(x[0])+"</th><td>"+esc(x[1])+"</td></tr>";}).join("")+"</tbody></table>";
-}
-// Sestava za obec/mesto: kontakty, vsechny kandidatky a stavajici zastupitelstvo.
+// Sestava za obec/mesto: jde o kandidatky, nic jineho se do ni netahne.
 function tiskObecHTML(o){
-  var s26=o.strany_2026||[], flat=o.kandidati_2026||[], z22=o.zastupitelstvo||[];
+  var s26=o.strany_2026||[], flat=o.kandidati_2026||[];
   var pk=s26.length?s26.reduce(function(a,x){return a+((x.kand||[]).length);},0):flat.length;
   var h="<div class='tobec'>"+tiskHlava(o.nazev+" — kandidátní listiny 2026",
     "Volby do zastupitelstev obcí 9.–10. 10. 2026 · "+
     (s26.length?s26.length+" "+pl(s26.length,"volební strana","volební strany","volebních stran")+" · ":"")+
     pk+" "+pl(pk,"kandidát","kandidáti","kandidátů")+
     (o.pracoviste?" · pracoviště VHOS "+o.pracoviste:""));
-  var kont=tiskKontaktyTab(o);
-  if(kont)h+="<div class='tsekce'><h2>Kontakty (období 2022–2026)</h2>"+kont+"</div>";
   if(s26.length)h+=s26.map(function(st,i){return tiskStranaSekce(o,st,i);}).join("");
   else if(flat.length)h+="<div class='tsekce'><h2>Kandidáti 2026</h2><div class='tsloupce'><ul>"+
     flat.map(function(x){return "<li>"+esc(x)+"</li>";}).join("")+"</ul></div></div>";
   else h+="<div class='tmeta'>— kandidátky zatím nenačtené —</div>";
-  if(z22.length)h+="<div class='tsekce'><h2>Zastupitelstvo 2022–2026 ("+z22.length+")</h2>"+
-    "<div class='tsloupce'><ul>"+z22.map(function(x){return "<li>"+esc(x)+"</li>";}).join("")+"</ul></div></div>";
   return h+tiskPata(o)+"</div>";
 }
 function tiskObec(o){tiskuj(tiskObecHTML(o));}
