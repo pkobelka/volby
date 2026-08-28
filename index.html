@@ -188,6 +188,10 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
   .tisk th,.tisk td{border:.5pt solid #666;padding:2pt 4pt;text-align:left;vertical-align:top;}
   .tisk th{background:#eee;font-size:8.5pt;}
   .tisk td.c{text-align:center;white-space:nowrap;}
+  .tisk th.w1{width:5%;}
+  .tisk th.w2{width:24%;}
+  .tisk th.wp{width:22%;}
+  .tisk td.pozn{height:16pt;}
   .tisk .tsloupce{column-count:3;column-gap:10pt;font-size:9pt;}
   .tisk .tsloupce li{margin:1pt 0;}
   .tisk ul{padding-left:14pt;}
@@ -909,12 +913,13 @@ function tiskJmeno(k){
 }
 function tiskKandTab(kand){
   if(!kand||!kand.length)return "<div class='tmeta'>— kandidáti nenačteni —</div>";
-  return "<table><thead><tr><th>Poz.</th><th>Jméno a příjmení</th><th>Věk</th><th>Povolání</th>"+
-    "<th>Polit. přísl.</th><th>Bydliště</th></tr></thead><tbody>"+
+  // Posledni sloupec zustava prazdny - je to misto na poznamku tuzkou.
+  return "<table><thead><tr><th class='w1'>Poz.</th><th class='w2'>Jméno a příjmení</th><th class='w1'>Věk</th><th>Povolání</th>"+
+    "<th>Polit. přísl.</th><th>Bydliště</th><th class='wp'>Poznámka</th></tr></thead><tbody>"+
     kand.map(function(k,i){
       return "<tr><td class='c'>"+esc(String(k.p||i+1))+"</td><td>"+tiskJmeno(k)+"</td>"+
         "<td class='c'>"+esc(String(k.vek||""))+"</td><td>"+esc(k.pov||"")+"</td>"+
-        "<td>"+esc(k.ps||"")+"</td><td>"+esc(k.byd||"")+"</td></tr>";
+        "<td>"+esc(k.ps||"")+"</td><td>"+esc(k.byd||"")+"</td><td class='pozn'></td></tr>";
     }).join("")+"</tbody></table>";
 }
 function tiskStranaSekce(o,st,i){
