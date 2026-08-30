@@ -144,6 +144,15 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 .kstr ol{margin:6px 0 0;padding-left:26px;font-size:.9rem;}
 .kstr ol li{margin:3px 0;}
 .kstr .kdet{color:#8a8272;font-size:.78rem;}
+.kstr details.pg{margin-top:6px;border-top:1px solid #f2efe7;padding-top:6px;}
+.kstr details.pg>summary{cursor:pointer;font-size:.8rem;color:var(--zelena);font-weight:600;list-style:none;}
+.kstr details.pg>summary::-webkit-details-marker{display:none;}
+.pgtext{margin:6px 0 4px;font-size:.88rem;line-height:1.45;color:#333;}
+.pgtext h4{font-size:.9rem;color:var(--zelena-tmava);margin:9px 0 2px;}
+.pgtext p{margin:3px 0;}
+.pgtext p.cit{font-style:italic;color:#6a7a63;}
+.pgtext p.podpis{margin-top:8px;font-weight:600;color:#555;}
+.kstr .tiskprog{cursor:pointer;color:var(--zelena);}
 .zast li.zvyr,.kstr ol li.zvyr{background:#fff3ce;border-radius:6px;box-shadow:0 0 0 5px #fff3ce;}
 .zamcard .kotva{cursor:pointer;border-bottom:1px dashed #bfc7ba;}
 .zamcard .kotva:hover{color:var(--zelena);border-bottom-color:var(--zelena);}
@@ -207,6 +216,11 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
   .tisk .tsloupce{column-count:3;column-gap:10pt;font-size:9pt;}
   .tisk .tsloupce li{margin:1pt 0;}
   .tisk ul{padding-left:14pt;}
+  .tisk .tprog{font-size:9.5pt;line-height:1.35;}
+  .tisk .tprog h4{font-size:10pt;margin:6pt 0 2pt;}
+  .tisk .tprog p{margin:2pt 0;}
+  .tisk .tprog p.cit{font-style:italic;}
+  .tisk .tprog p.podpis{margin-top:6pt;font-weight:700;}
   .tisk .tpata{margin-top:10pt;padding-top:4pt;border-top:.5pt solid #999;font-size:7.5pt;color:#555;}
 }
 </style></head><body>
@@ -941,6 +955,8 @@ function openModal(o,zvyraznit){
 var PDV_OBEC="https://programydovoleb.cz/volby/komunalni-volby/176/obec/";
 function hledatURL(q){return "https://www.google.com/search?q="+encodeURIComponent(q);}
 function hledatLink(q,text){return "<a href='"+esc(hledatURL(q))+"' target='_blank' rel='noopener'>"+esc(text||"vyhledat")+" \ud83d\udd0e</a>";}
+// programy vypsane v prave otevrenem detailu – tlacitko tisku si drzi jen index
+var _PGTISK=[];
 function programKey(s,i){var c=(s&&s.c!=null)?String(s.c).replace(/[^0-9A-Za-z]/g,""):"";return c?"c"+c:"i"+i;}
 // Název strany často obsahuje i název obce ("Sdružení pro město Svitavy") –
 // pak by se v dotazu opakoval.
@@ -957,6 +973,104 @@ var ZDROJE_PROGRAMU={
   "578347":[{t:"Město Litomyšl – Volby",u:"https://www.litomysl.cz/volby"}],
   "577731":[{t:"Svitavský deník – volby 2026",u:"https://svitavsky.denik.cz/zpravy-region/komunalni-volby-2026-ve-svitavach-kdo-kandiduje-kdy-se-voli-a-co-je-fajn-vedet/"}]
 };
+// Programy, které nemají web ani PDF (roznášejí se do schránek), držíme jako
+// text rovnou tady – ať jsou vidět i bez Firebase a dají se vytisknout.
+// Ke straně se text páruje podle názvu, protože číslo strany se dozvíme až
+// z kandidátek. Text uložený v aplikaci (programy_text_2026) má přednost.
+var PROGRAMY_TEXT={
+  "578193":[{nazev:"V Jevíčku s rozumem",
+    kandidat:"Bc. Jindřich Beneš, váš kandidát na starostu pro volební období 2026\u20132030",
+    text:[
+      "Vážení spoluobčané, rádi bychom vám představili náš volební program. Je nám jasné, že vzhledem k finančním možnostem města se nepodaří zrealizovat vše, co by se nám líbilo, ale můžeme vám slíbit, že se jej budeme snažit plnit, jak nejlépe dovedeme.",
+      "1. Transparentní a otevřená radnice",
+      "Zveřejňování důležitých informací chystaných projektů srozumitelnou formou, zavedení participativního rozpočtu, o jehož části budou moci rozhodovat občané a především \u201erovná\u201c komunikace se všemi občany na stejné úrovni.",
+      "2. Kvalitní služby pro rodiny a mladé",
+      "Podpora mateřské a základní školy. Rozšíření možností volnočasových aktivit pro děti a mládež. Modernizace dětských hřišť a sportovišť.",
+      "Město získalo krásný areál \u201eŽlíbka\u201c a je na čase řešit smysluplné využití koupaliště, hřiště, haly i hlavní budovy.",
+      "Podpora dostupného bydlení pro mladé rodiny.",
+      "Spolupráce s místními spolky a organizacemi.",
+      "\u201eMladí lidé musí mít důvod v Jevíčku zůstat.\u201c",
+      "3. Bezpečné a upravené město",
+      "Opravy chodníků, místních komunikací a veřejných prostranství.",
+      "Zefektivnění veřejného osvětlení \u2013 výměna starých, poruchových a provozně drahých svítidel.",
+      "Pravidelná údržba zeleně a s tím související náhrada starých poškozených stromů za nové.",
+      "Péče o čistotu města a místních částí.",
+      "\u201ePořádek a bezpečí nejsou luxus, ale samozřejmost.\u201c Rádi bychom dokončili započatou výměnu starých svítidel za nová s levnějším provozem.",
+      "4. Podpora seniorů",
+      "Rozšíření nabídky komunitních a kulturních aktivit, lepší dostupnost sociálních služeb.",
+      "Podpora terénní péče a pomoci seniorům v domácím prostředí.",
+      "Program mezigenerační spolupráce.",
+      "\u201eÚcta ke stáří není jen kytička k svátku, ale pozná se podle toho, jak se město stará o své seniory.\u201c Rádi bychom zřídili pension/domov důchodců pro naše seniory (městská ubytovna/bývalé \u201eJenišovo\u201c).",
+      "5. Doprava a parkování",
+      "Bezpečné trasy pro pěší, kdy nás nejvíce \u201epálí\u201c scházející přechody na ulicích Třebovská a Svitavská.",
+      "Aktivní jednání s krajem o dopravní obslužnosti.",
+      "Opravy komunikací podle jasně stanovených priorit.",
+      "\u201eRozumná doprava a parkování bez zbytečných slibů.\u201c Určitě bychom pokračovali v započaté přípravě nového parkoviště na Okružní I a bude-li to možné, realizovali další nové parkoviště např. i na Okružní IV.",
+      "6. Životní prostředí a energie \u2013 zelenější město s nižšími provozními náklady",
+      "Výsadba nové zeleně a stromů.",
+      "Efektivní využití dešťové vody pro zálivku městské zeleně.",
+      "Postupné energetické úspory na městských budovách \u2013 výměny svítidel, neekonomických vytápěcích systémů, zateplení apod.",
+      "Podpora komunitních ekologických projektů.",
+      "Pro zmenšení objemu odpadu bychom rádi v prostoru sběrného dvora zřídili \u201ereuse obchod\u201c, kde by odevzdané a funkční věci mohly najít nové uplatnění.",
+      "Ochrana okolní krajiny a rekreačních lokalit.",
+      "7. Kultura, sport a spolkový život",
+      "Podpora místních kulturních akcí.",
+      "Zachování tradic a historického odkazu města.",
+      "Finanční podpora aktivních spolků.",
+      "Rozvoj sportovního zázemí.",
+      "Lepší propagace turistického potenciálu města.",
+      "\u201eSilné město stojí na aktivních lidech.\u201c",
+      "8. Rozvoj města a získávání dotací",
+      "Aktivní vyhledávání dotačních programů.",
+      "Příprava projektů s dlouhodobým přínosem.",
+      "Rozvoj podnikatelského prostředí.",
+      "Podpora drobných živnostníků a místních firem.",
+      "Odpovědné investice bez zbytečného zadlužování.",
+      "\u201eKaždá koruna zvenčí znamená více možností pro Jevíčko.\u201c Rádi bychom dokončili II. etapu průmyslové zóny a pozemky v ní nabídli investorům, kteří by vytvořili pracovní místa. Miliónové investice pro skladové haly nejsou šťastným řešením \u2013 chceme-li ve městě udržet mladé rodiny, musíme jim nabídnout nejen možnosti bydlení, ale i pracovní místa.",
+      "Naše hlavní priority pro volební období:",
+      "Dokončit projekty zahájené našimi předchůdci a efektivně investovat do nových.",
+      "Bezpečné město pro všechny, posílení bezpečnosti ve městě a eliminace nekalých živlů.",
+      "Podpora mladých rodin, jejich bydlení a pracovní uplatnění.",
+      "Postupná modernizace veřejných prostor.",
+      "Opravy komunikací, vodovodů, kanalizačních stok \u2013 prioritně dle špatného stavu.",
+      "Aktivní získávání dotací.",
+      "Otevřená a transparentní radnice.",
+      "Naše motto \u2013 \u201eJevíčko s rozumem \u2013 rozumně, otevřeně a společně.\u201c",
+      "Pokud vás náš program zaujal, podpořte nás v nadcházejících volbách 9.\u201310. 10. 2026 a my se vynasnažíme, abychom vaši důvěru nezklamali."
+    ].join("\n")}]
+};
+// Vestaveny text hledame podle nazvu strany – v datech z volby.gov.cz se
+// nazev muze lisit velikosti pismen nebo pripojenym "Sdruzeni ...".
+function programVestaveny(o,s){
+  var arr=(o&&PROGRAMY_TEXT[o.kod])||[];
+  var n=fold((s&&s.nazev)||"");
+  if(!arr.length||!n)return null;
+  for(var i=0;i<arr.length;i++){
+    var m=fold(arr[i].nazev);
+    if(n===m||n.indexOf(m)>=0||m.indexOf(n)>=0)return arr[i];
+  }
+  return null;
+}
+// Program strany k zobrazeni: nejdriv rucne ulozeny text, pak vestaveny.
+function programText(o,s,i){
+  var t=((o.programy_text_2026||{})[programKey(s,i)]||"").trim();
+  if(t)return {nazev:(s&&s.nazev)||"",kandidat:"",text:t,zdroj:"uložený text"};
+  var v=programVestaveny(o,s);
+  if(v)return {nazev:v.nazev,kandidat:v.kandidat||"",text:v.text,zdroj:"text vestavěný v aplikaci"};
+  return null;
+}
+// Text je prosty – nadpisy pozname podle "1." na zacatku radku nebo podle
+// dvojtecky na konci, hesla v uvozovkach vysazime kurzivou.
+function programTextHTML(p){
+  var h=(p.text||"").split(/\r?\n/).map(function(l){
+    l=l.trim();
+    if(!l)return "";
+    if(/^\d+\.\s/.test(l)||(/:$/.test(l)&&l.length<80))return "<h4>"+esc(l)+"</h4>";
+    if(/^[\u201e"]/.test(l))return "<p class='cit'>"+esc(l)+"</p>";
+    return "<p>"+esc(l)+"</p>";
+  }).join("");
+  return h+(p.kandidat?"<p class='podpis'>"+esc(p.kandidat)+"</p>":"");
+}
 function programyHTML(o){
   var s26=o.strany_2026||[], ulo=o.programy_2026||{};
   var h="<div class='r'><b>Rozcestník</b><span>"+
@@ -966,30 +1080,63 @@ function programyHTML(o){
   var zdr=ZDROJE_PROGRAMU[o.kod];
   if(zdr)h+="<div class='r'><b>Kde hledat</b><span>"+zdr.map(function(z){
     return "<a href='"+esc(z.u)+"' target='_blank' rel='noopener'>"+esc(z.t)+"</a>";}).join(" · ")+"</span></div>";
-  if(!s26.length)return h+"<div class='hint'>Volební strany zatím nenačtené — nejdřív načti kandidátky 2026.</div>";
+  _PGTISK=[];
+  if(!s26.length){
+    var vest=PROGRAMY_TEXT[o.kod]||[];
+    // Text programu mame i pred nactenim kandidatky – skoda ho schovavat.
+    if(!vest.length)return h+"<div class='hint'>Volební strany zatím nenačtené — nejdřív načti kandidátky 2026.</div>";
+    return h+"<div class='hint'>Volební strany zatím nenačtené — text programu ukazujeme podle názvu strany.</div>"+
+      vest.map(function(v){return programBlok(o,{nazev:v.nazev},
+        {nazev:v.nazev,kandidat:v.kandidat||"",text:v.text,zdroj:"text vestavěný v aplikaci"},null);}).join("");
+  }
   return h+s26.map(function(s,i){
-    var u=ulo[programKey(s,i)];
-    return "<div class='kstr'><div class='khdr'><span class='kc'>"+esc(String(s.c||"?"))+"</span>"+
-      "<span>"+hl(s.nazev||"(bez názvu)",_Q)+"</span></div>"+
-      "<div class='kdet'>"+(u?"\ud83d\udcc4 "+link(u,"web"):"<span class='prazdne'>program nevyplněn</span>")+
-      " · "+hledatLink(dotazNaProgram(o,s),"vyhledat")+"</div></div>";
+    return programBlok(o,s,programText(o,s,i),ulo[programKey(s,i)]);
   }).join("");
 }
+// u = odkaz na program, p = cely text programu (jedno, druhe, obojí, nebo nic)
+function programBlok(o,s,p,u){
+  var cely="";
+  if(p){
+    var idx=_PGTISK.push(p)-1;
+    cely="<details class='pg'><summary>\ud83d\udcdc Celý program</summary>"+
+      "<div class='pgtext'>"+programTextHTML(p)+"</div>"+
+      "<div class='kdet'>"+esc(p.zdroj)+" · <span class='tiskprog' data-i='"+idx+"'>\ud83d\udda8\ufe0f vytisknout program</span></div></details>";
+  }
+  return "<div class='kstr'><div class='khdr'><span class='kc'>"+esc(String(s.c||"?"))+"</span>"+
+    "<span>"+hl(s.nazev||"(bez názvu)",_Q)+"</span></div>"+
+    "<div class='kdet'>"+(u?"\ud83d\udcc4 "+link(u,"web"):
+      (p?"\ud83d\udcdc text programu níže":"<span class='prazdne'>program nevyplněn</span>"))+
+    " · "+hledatLink(dotazNaProgram(o,s),"vyhledat")+"</div>"+cely+"</div>";
+}
 function openProgramEditor(){
-  var o=_CUR, s26=o.strany_2026||[], ulo=o.programy_2026||{};
+  var o=_CUR, s26=o.strany_2026||[], ulo=o.programy_2026||{}, ult=o.programy_text_2026||{};
   if(!s26.length){renderModal();return;}
   document.getElementById("mbody").innerHTML="<h2>\ud83d\udcc4 Volební programy — "+esc(o.nazev)+"</h2>"+
-    "<div class='hint'>Odkaz na program strany (web, PDF, Facebook). Prázdné pole odkaz smaže.</div>"+
-    s26.map(function(s,i){return editRow((s.c!=null?s.c+" · ":"")+(s.nazev||"(bez názvu)"),"pg_"+programKey(s,i),ulo[programKey(s,i)]);}).join("")+
+    "<div class='hint'>Odkaz na program strany (web, PDF, Facebook) a/nebo celý text programu, když strana web nemá — třeba přepsaný z letáku do schránky. Prázdné pole obsah smaže.</div>"+
+    s26.map(function(s,i){
+      var k=programKey(s,i), v=programVestaveny(o,s);
+      // Vestaveny text predvyplnime, at ho jde v aplikaci rovnou opravit.
+      var t=ult[k]||(v?v.text+(v.kandidat?"\n"+v.kandidat:""):"");
+      return "<div class='sekce'>"+esc((s.c!=null?s.c+" · ":"")+(s.nazev||"(bez názvu)"))+"</div>"+
+        editRow("Odkaz","pg_"+k,ulo[k])+
+        editArea("Text programu","pgt_"+k,t,8);
+    }).join("")+
     "<div class='mtools'><button class='btn' id='pg_save'>\ud83d\udcbe Uložit</button><button class='btn ghost' id='pg_back'>← Zpět</button></div>"+
     "<div class='msg' id='mmsg'></div>";
   document.getElementById("pg_back").addEventListener("click",function(){renderModal();});
   document.getElementById("pg_save").addEventListener("click",function(){
-    var obj={},n=0;
-    s26.forEach(function(s,i){var k=programKey(s,i),v=(document.getElementById("pg_"+k).value||"").trim();if(v){obj[k]=v;n++;}});
+    var obj={},objT={},n=0,m=0;
+    s26.forEach(function(s,i){
+      var k=programKey(s,i),
+          v=(document.getElementById("pg_"+k).value||"").trim(),
+          t=(document.getElementById("pgt_"+k).value||"").trim();
+      if(v){obj[k]=v;n++;}
+      if(t){objT[k]=t;m++;}
+    });
     document.getElementById("mmsg").textContent="Ukládám…";
-    FDB.ref("volby_obce/"+o.kod).update({programy_2026:n?obj:null,upravil:_USER.email,upravil_ts:Date.now()})
-      .then(function(){o.programy_2026=n?obj:null;renderModal();})
+    FDB.ref("volby_obce/"+o.kod).update({programy_2026:n?obj:null,programy_text_2026:m?objT:null,
+        upravil:_USER.email,upravil_ts:Date.now()})
+      .then(function(){o.programy_2026=n?obj:null;o.programy_text_2026=m?objT:null;renderModal();})
       .catch(function(e){document.getElementById("mmsg").textContent="\u26a0\ufe0f "+(e&&e.message?e.message:e);});
   });
 }
@@ -1032,6 +1179,7 @@ function tiskKandTab(kand){
 }
 function tiskStranaSekce(o,st,i,rok){
   var kand=st.kand||[], u=(rok==="2022")?null:(o.programy_2026||{})[programKey(st,i)];
+  if(!u&&rok!=="2022"&&programText(o,st,i))u="celý text v aplikaci";
   return "<div class='tsekce'><h2>"+esc((st.c!=null?st.c+" · ":"")+(st.nazev||"(bez názvu)"))+"</h2>"+
     "<div class='tmeta'>"+esc(o.nazev)+(st.typ?" · "+esc(st.typ):"")+" · "+kand.length+" "+
     pl(kand.length,"kandidát","kandidáti","kandidátů")+(u?" · program: "+esc(u):"")+"</div>"+
@@ -1043,6 +1191,7 @@ function tiskStrana(o,i,rok){
   var st=kstrany(o,rok)[i];
   if(!st)return;
   var pr=(rok==="2026")?(o.programy_2026||{})[programKey(st,i)]:null;
+  if(!pr&&rok==="2026"&&programText(o,st,i))pr="celý text v aplikaci (tiskne se zvlášť)";
   tiskuj("<div class='tobec'>"+tiskHlava((st.c!=null?st.c+" · ":"")+(st.nazev||"(bez názvu)"),
       o.nazev+" · kandidátní listina pro volby do zastupitelstev obcí "+tiskTermin(rok))+
     tiskKandTab(st.kand||[])+
@@ -1050,6 +1199,18 @@ function tiskStrana(o,i,rok){
     tiskPata(o,rok)+"</div>");
 }
 function tiskTermin(rok){return rok==="2022"?"23.–24. 9. 2022":"9.–10. 10. 2026";}
+// Samostatna sestava s celym volebnim programem (index do _PGTISK, jak ho
+// vypsal programyHTML pro prave otevrenou obec).
+function tiskProgram(o,i){
+  var pr=_PGTISK[i];
+  if(!pr)return;
+  tiskuj("<div class='tobec'>"+
+    tiskHlava(pr.nazev||"Volební program",
+      o.nazev+" · volební program pro volby do zastupitelstev obcí "+tiskTermin("2026"))+
+    "<div class='tprog'>"+programTextHTML(pr)+"</div>"+
+    "<div class='tpata'>Volební program: "+esc(pr.zdroj)+" · vytištěno "+
+      new Date().toLocaleDateString("cs")+" z aplikace Volby 2026 (VHOS)</div></div>");
+}
 // Sestava za obec/mesto: jde o kandidatky, nic jineho se do ni netahne.
 function tiskObecHTML(o,rok){
   rok=rok||"2026";
@@ -1398,6 +1559,9 @@ function renderModal(){
     document.getElementById("tiskObecBtn").addEventListener("click",function(){tiskObec(o);});
     Array.prototype.forEach.call(document.querySelectorAll("#mbody .tiskstr"),function(el){
       el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();tiskStrana(o,+el.getAttribute("data-i"),el.getAttribute("data-rok"));});
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("#mbody .tiskprog"),function(el){
+      el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();tiskProgram(o,+el.getAttribute("data-i"));});
     });
   }
 }
@@ -3098,7 +3262,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-28 · v42 (import 2022: oprava jmen kandidátů, návod na registry)";
+var VERZE="2026-08-30 · v43 (volební programy: celý text u strany, tisk programu)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>

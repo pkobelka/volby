@@ -1,4 +1,4 @@
-# Kde jsme skončili (28. 8. 2026, verze v42)
+# Kde jsme skončili (30. 8. 2026, verze v43)
 
 ## Hotové a nasazené v `main`
 - **Složky nahoře** dvouúrovňové: Volby 2022 / Volby 2026 / Vše.
@@ -12,7 +12,11 @@
 - **Tisk kandidátek**: za stranu / za obec / dávkově s výběrem obcí fajfkou,
   přepínač období, prázdný sloupec Poznámka.
 - **Volební programy** u obce: rozcestník + ruční ukládání odkazů (M. Třebová,
-  Polička, Litomyšl, Svitavy mají ověřené odkazy).
+  Polička, Litomyšl, Svitavy mají ověřené odkazy) a **celý text programu** —
+  buď uložený v aplikaci (`programy_text_2026`, edituje se tužkou u sekce),
+  nebo vestavěný v `PROGRAMY_TEXT` v `index.html` (zatím Jevíčko –
+  „V Jevíčku s rozumem"). Text se páruje ke straně podle názvu, rozbalí se
+  v detailu obce a má vlastní tiskovou sestavu.
 - **Porovnání s AquaControlem** + „Srovnat podle hranice.json".
 - `hranice.json`: Kladky, Krasíkov a Roubanina nejsou provozované (82/38).
 
