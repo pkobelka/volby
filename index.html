@@ -805,8 +805,18 @@ function render(){
   if(q&&!g.children.length){
     var jinde=0;
     if(fKdo!=="vse"){var _zpet=fKdo;fKdo="vse";jinde=filtrObce(q).length;fKdo=_zpet;}
-    g.innerHTML="<div class='intro'><div class='introicon'>🔎</div><h3>Nic nenalezeno</h3>"+
-      "<p>Na „"+esc(document.getElementById("q").value.trim())+"“ v této složce nic nesedí."+
+    // Prázdná složka je něco jiného než neúspěšné hledání – když kandidátky
+    // daného roku nejsou načtené, nenajde se v nich nikdo a nemá cenu to
+    // svádět na dotaz.
+    var chybi={k22:"Kandidátky 2022 nejsou načtené",k26:"Kandidátky 2026 nejsou načtené",
+               v22:"Výsledky voleb 2022 nejsou načtené"}[fKdo];
+    var maData=fKdo==="k22"?kandStat("2022").obci:(fKdo==="k26"?kandStat("2026").obci:
+               (fKdo==="v22"?OBCE.filter(function(o){return strany2022(o).length;}).length:1));
+    g.innerHTML="<div class='intro'><div class='introicon'>🔎</div>"+
+      "<h3>"+(maData?"Nic nenalezeno":esc(chybi||"Nic nenalezeno"))+"</h3>"+
+      "<p>"+(maData
+        ? "Na „"+esc(document.getElementById("q").value.trim())+"“ v této složce nic nesedí."
+        : "V této složce zatím nejsou žádná data, takže se v ní nenajde nikdo.")+
       (jinde?" Ve složce <b>Vše dohromady</b> by to bylo "+jinde+" "+pl(jinde,"obec","obce","obcí")+".":"")+"</p>"+
       (jinde?"<div class='introbtns'><button class='btn' id='hledatVse'>Hledat ve všem</button></div>":"")+"</div>";
     if(jinde)document.getElementById("hledatVse").addEventListener("click",function(){kdoPrepni("vse");});
