@@ -1,6 +1,11 @@
 # Kde jsme skončili (28. 8. 2026, verze v42)
 
 ## Hotové a nasazené v `main`
+- **Hledání po slovech**: dotaz se rozpadne na slova a v textu musí sedět všechna,
+  na pořadí nezáleží. Dvě příjmení jdou najít i obráceně nebo se spojovníkem
+  („janoušková horváthová" i „Horváthová-Janoušková" najdou Marii Horváthovou
+  Janouškovou). Když v podsložce nic nesedí, ukáže se hláška s počtem shod
+  ve složce Vše dohromady a tlačítkem na přepnutí.
 - **Složky nahoře** dvouúrovňové: Volby 2022 / Volby 2026 / Vše.
   Pod 2022: Kandidátky 2022 · Výsledky voleb · Zastupitelstva 2022–2026.
   Hledání se řídí podsložkou (kandidáti daného roku, strany s mandáty, současné funkce).

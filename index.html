@@ -294,16 +294,45 @@ var LOGIN_URL=location.origin+location.pathname;
 function leKey(email){return String(email||'').trim().toLowerCase().replace(/\./g,',');}
 function esc(s){return (s||"").replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
 function fold(s){return (s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");}
+/* Dotaz se rozpadne na slova a v textu musí sedět každé z nich, ale je jedno
+   v jakém pořadí. Dvě příjmení se tak najdou, i když je má někdo zapsaná
+   obráceně nebo se spojovníkem: "janoušková horváthová" i "Horváthová-Janoušková"
+   najdou "Mgr. Marie Horváthová Janoušková". Jednoslovný dotaz se chová jako dřív. */
+var _QTOK={q:null,t:[]};
+function qtokens(q){
+  var f=fold(q);
+  if(_QTOK.q!==f)_QTOK={q:f,t:f.split(/[\s\-\u2013\u2014\/,;]+/).filter(Boolean)};
+  return _QTOK.t;
+}
+// sedí text na dotaz? (dotaz i text bez diakritiky, na pořadí slov nezáleží)
+function qhas(text,q){
+  var t=qtokens(q);if(!t.length)return false;
+  var f=fold(text);
+  for(var i=0;i<t.length;i++)if(f.indexOf(t[i])<0)return false;
+  return true;
+}
 // zvýrazní shodu s dotazem q (bez diakritiky) uvnitř textu; vrací escapované HTML
 function hl(text,q){
   text=text==null?"":String(text);
-  if(!q) return esc(text);
+  var toks=qtokens(q);
+  if(!toks.length) return esc(text);
   var folded="",map=[];
   for(var i=0;i<text.length;i++){var f=fold(text[i]);for(var j=0;j<f.length;j++){folded+=f[j];map.push(i);}}
-  var idx=folded.indexOf(q);
-  if(idx<0) return esc(text);
-  var s=map[idx], e=map[idx+q.length-1];
-  return esc(text.slice(0,s))+"<mark>"+esc(text.slice(s,e+1))+"</mark>"+esc(text.slice(e+1));
+  var usek=[];
+  toks.forEach(function(t){
+    for(var idx=folded.indexOf(t);idx>=0;idx=folded.indexOf(t,idx+t.length))
+      usek.push([map[idx],map[idx+t.length-1]+1]);
+  });
+  if(!usek.length) return esc(text);
+  usek.sort(function(a,b){return a[0]-b[0]||a[1]-b[1];});
+  var out="",pos=0;
+  usek.forEach(function(u){
+    if(u[1]<=pos)return;                       // celý úsek už je zvýrazněný
+    var od=u[0]>pos?u[0]:pos;
+    out+=esc(text.slice(pos,od))+"<mark>"+esc(text.slice(od,u[1]))+"</mark>";
+    pos=u[1];
+  });
+  return out+esc(text.slice(pos));
 }
 
 var OBCE=[], SVAZKY=[], _USER=null, _CUR=null, _EDIT=false, _CURSV=null, _EDITSV=false, _Q="", _VIEW="list", _showAll=false, _navTmp=[], _svErr="";
@@ -441,11 +470,11 @@ function loadSvazky(){
   });
 }
 function obecByKod(k){for(var i=0;i<OBCE.length;i++){if(OBCE[i].kod===k)return OBCE[i];}return null;}
-function matchSvazek(s,q){return fold(s.nazev).indexOf(q)>=0||fold(s.osoba).indexOf(q)>=0||fold(s.funkce).indexOf(q)>=0||fold(s.ucetni).indexOf(q)>=0||fold(s.sidlo_obec).indexOf(q)>=0||fold(s.email).indexOf(q)>=0;}
+function matchSvazek(s,q){return qhas(s.nazev,q)||qhas(s.osoba,q)||qhas(s.funkce,q)||qhas(s.ucetni,q)||qhas(s.sidlo_obec,q)||qhas(s.email,q);}
 function hitSvazek(s,q){
-  if(!q||fold(s.nazev).indexOf(q)>=0) return "";
-  if(fold(s.osoba).indexOf(q)>=0) return "<div class='hit'>🔎 osoba: "+hl(s.osoba,q)+"</div>";
-  if(fold(s.ucetni).indexOf(q)>=0) return "<div class='hit'>🔎 účetní: "+hl(s.ucetni,q)+"</div>";
+  if(!q||qhas(s.nazev,q)) return "";
+  if(qhas(s.osoba,q)) return "<div class='hit'>🔎 osoba: "+hl(s.osoba,q)+"</div>";
+  if(qhas(s.ucetni,q)) return "<div class='hit'>🔎 účetní: "+hl(s.ucetni,q)+"</div>";
   return "";
 }
 function svCard(s,q){
@@ -578,6 +607,12 @@ function groupHdr(g,provoz){var h=document.createElement("div");h.className="gro
   var n=OBCE.filter(function(o){return o.provozovano===provoz;}).length;
   h.innerHTML=(provoz?"🔧 Provozované VHOS":"Neprovozované")+" <span class='cnt'>("+n+" obcí)</span>";g.appendChild(h);}
 function maKandidatky(){return OBCE.some(function(o){return (o.kandidati_2026||[]).length;});}
+// přepnutí podsložky (volá i hláška „nic nenalezeno" pod prázdným seznamem)
+function kdoPrepni(k){
+  fKdo=k;try{localStorage.setItem("volby_kdo",k);}catch(e){}
+  initKdo();
+  if(_VIEW==="zam")renderZamView();else{showView("list");initProv();render();}
+}
 function initKdo(){
   var box=document.getElementById("kdoTabs"), sub=document.getElementById("kdoSub"), pop=document.getElementById("obPopis");
   if(!box)return;
@@ -588,11 +623,7 @@ function initKdo(){
   var nK22=OBCE.reduce(function(a,o){return a+kjmena(o,"2022").length;},0);
   var nKo22=OBCE.filter(function(o){return kjmena(o,"2022").length;}).length;
   var akt=slozkaOf(fKdo);
-  function prepni(k){
-    fKdo=k;try{localStorage.setItem("volby_kdo",k);}catch(e){}
-    initKdo();
-    if(_VIEW==="zam")renderZamView();else{showView("list");initProv();render();}
-  }
+  var prepni=kdoPrepni;
   box.innerHTML="";
   SLOZKY.forEach(function(o){
     var b=document.createElement("button");
@@ -641,23 +672,23 @@ function initKdo(){
   }
 }
 
-function matchZast(o,q){return (o.zastupitelstvo||[]).some(function(z){return fold(z).indexOf(q)>=0;});}
-function matchArr(a,q){return (a||[]).some(function(x){return fold(x).indexOf(q)>=0;});}
+function matchZast(o,q){return (o.zastupitelstvo||[]).some(function(z){return qhas(z,q);});}
+function matchArr(a,q){return (a||[]).some(function(x){return qhas(x,q);});}
 function strany2022(o){return (o.vysledky_2022&&o.vysledky_2022.strany)||[];}
-function matchStrany2022(o,q){return strany2022(o).some(function(st){return fold(st.nazev).indexOf(q)>=0;});}
+function matchStrany2022(o,q){return strany2022(o).some(function(st){return qhas(st.nazev,q);});}
 function hitStrany2022(o,q){
-  var s22=strany2022(o).filter(function(st){return fold(st.nazev).indexOf(q)>=0;});
+  var s22=strany2022(o).filter(function(st){return qhas(st.nazev,q);});
   if(!s22.length)return "";
   return "<div class='hit'>🔎 strana 2022: "+s22.map(function(st){
     return hl(st.nazev,q)+(st.mandaty!=null?" ("+st.mandaty+" "+pl(st.mandaty,"mandát","mandáty","mandátů")+")":"");}).join(", ")+"</div>";
 }
 function matchFunkce(o,q){
-  if(fold(o.starosta).indexOf(q)>=0||fold(o.mistostarosta).indexOf(q)>=0||fold(o.ucetni).indexOf(q)>=0)return true;
-  if(fold(o.starosta_email).indexOf(q)>=0||fold(o.email).indexOf(q)>=0)return true;
+  if(qhas(o.starosta,q)||qhas(o.mistostarosta,q)||qhas(o.ucetni,q))return true;
+  if(qhas(o.starosta_email,q)||qhas(o.email,q))return true;
   return matchZast(o,q)||matchArr(o.rada,q);
 }
 function matchObec(o,q){
-  if(fold(o.nazev).indexOf(q)>=0||matchArr(o.vf,q))return true;   // obec a fakturace platí vždy
+  if(qhas(o.nazev,q)||matchArr(o.vf,q))return true;   // obec a fakturace platí vždy
   if(fKdo==="v22")return matchStrany2022(o,q);
   if(fKdo==="k22")return matchArr(kjmena(o,"2022"),q)||matchStrany2022(o,q);
   if(fKdo==="k26")return matchArr(kjmena(o,"2026"),q);
@@ -678,32 +709,32 @@ function kandKde(o,jmeno,rok){
 // řádek na kartě: čím obec odpovídá dotazu (kromě názvu, ten je v nadpisu)
 function hitKand(o,q,rok){
   rok=rok||"2026";
-  var kk=kjmena(o,rok).filter(function(x){return fold(x).indexOf(q)>=0;});
+  var kk=kjmena(o,rok).filter(function(x){return qhas(x,q);});
   if(!kk.length)return "";
   return "<div class='hit k26'>🗳️ "+(kk.length>1?kk.length+" kandidátů "+rok+": ":"kandidát "+rok+": ")+
     kk.slice(0,3).map(function(x){return hl(x,q)+kandKde(o,x,rok);}).join(", ")+
     (kk.length>3?" a další "+(kk.length-3):"")+"</div>";
 }
 function hitObec(o,q){
-  if(!q||fold(o.nazev).indexOf(q)>=0) return "";
+  if(!q||qhas(o.nazev,q)) return "";
   if(fKdo==="k26") return hitKand(o,q,"2026");
   if(fKdo==="k22") return hitKand(o,q,"2022")||hitStrany2022(o,q);
   if(fKdo==="v22") return hitStrany2022(o,q);
-  if(fold(o.starosta).indexOf(q)>=0) return "<div class='hit'>🔎 starosta: "+hl(o.starosta,q)+"</div>";
-  if(fold(o.mistostarosta).indexOf(q)>=0) return "<div class='hit'>🔎 místostarosta: "+hl(o.mistostarosta,q)+"</div>";
-  if(fold(o.ucetni).indexOf(q)>=0) return "<div class='hit'>🔎 účetní: "+hl(o.ucetni,q)+"</div>";
-  var vf=(o.vf||[]).filter(function(x){return fold(x).indexOf(q)>=0;});
+  if(qhas(o.starosta,q)) return "<div class='hit'>🔎 starosta: "+hl(o.starosta,q)+"</div>";
+  if(qhas(o.mistostarosta,q)) return "<div class='hit'>🔎 místostarosta: "+hl(o.mistostarosta,q)+"</div>";
+  if(qhas(o.ucetni,q)) return "<div class='hit'>🔎 účetní: "+hl(o.ucetni,q)+"</div>";
+  var vf=(o.vf||[]).filter(function(x){return qhas(x,q);});
   if(vf.length) return "<div class='hit'>🔎 VF: "+vf.map(function(x){return hl(x,q);}).join(", ")+"</div>";
-  var rad=(o.rada||[]).filter(function(x){return fold(x).indexOf(q)>=0;});
+  var rad=(o.rada||[]).filter(function(x){return qhas(x,q);});
   if(rad.length) return "<div class='hit'>🔎 rada: "+rad.map(function(x){return hl(x,q);}).join(", ")+"</div>";
-  var z=(o.zastupitelstvo||[]).filter(function(x){return fold(x).indexOf(q)>=0;});
+  var z=(o.zastupitelstvo||[]).filter(function(x){return qhas(x,q);});
   if(z.length) return "<div class='hit'>🔎 zastupitel: "+z.map(function(x){return hl(x,q);}).join(", ")+"</div>";
   if(fKdo!=="z22"){
     var hk=hitKand(o,q,"2026")||hitKand(o,q,"2022")||hitStrany2022(o,q);
     if(hk)return hk;
   }
-  if(fold(o.starosta_email).indexOf(q)>=0) return "<div class='hit'>🔎 e-mail: "+hl(o.starosta_email,q)+"</div>";
-  if(fold(o.email).indexOf(q)>=0) return "<div class='hit'>🔎 e-mail úřadu: "+hl(o.email,q)+"</div>";
+  if(qhas(o.starosta_email,q)) return "<div class='hit'>🔎 e-mail: "+hl(o.starosta_email,q)+"</div>";
+  if(qhas(o.email,q)) return "<div class='hit'>🔎 e-mail úřadu: "+hl(o.email,q)+"</div>";
   return "";
 }
 // Stejny vyber obci pouziva seznam i davkovy tisk.
@@ -768,9 +799,21 @@ function render(){
       (zm.length?" + "+zm.length+" "+pl(zm.length,"zaměstnanec","zaměstnanci","zaměstnanců"):"")+
       " (hledání ve všech"+(fKdo==="z22"?" – jen současní":"")+")";
   }
+  // Prázdný výsledek v podsložce vypadá, jako by ten člověk v datech vůbec nebyl.
+  // Typicky se hledá v kandidátkách 2022, a přitom je zapsaný jen jako dnešní
+  // starosta – tak ať je vidět, že jinde shoda je.
+  if(q&&!g.children.length){
+    var jinde=0;
+    if(fKdo!=="vse"){var _zpet=fKdo;fKdo="vse";jinde=filtrObce(q).length;fKdo=_zpet;}
+    g.innerHTML="<div class='intro'><div class='introicon'>🔎</div><h3>Nic nenalezeno</h3>"+
+      "<p>Na „"+esc(document.getElementById("q").value.trim())+"“ v této složce nic nesedí."+
+      (jinde?" Ve složce <b>Vše dohromady</b> by to bylo "+jinde+" "+pl(jinde,"obec","obce","obcí")+".":"")+"</p>"+
+      (jinde?"<div class='introbtns'><button class='btn' id='hledatVse'>Hledat ve všem</button></div>":"")+"</div>";
+    if(jinde)document.getElementById("hledatVse").addEventListener("click",function(){kdoPrepni("vse");});
+  }
 }
 /* ---- zaměstnanec ve výsledcích hledání ---- */
-function matchZam(z,q){return fold(z.jmeno).indexOf(q)>=0||fold(z.stredisko).indexOf(q)>=0||fold(z.pozice).indexOf(q)>=0;}
+function matchZam(z,q){return qhas(z.jmeno,q)||qhas(z.stredisko,q)||qhas(z.pozice,q);}
 function zamOsobaCard(z,q){
   var d=document.createElement("div");d.className="obec zamcard";
   var _obd=fKdoObd(fKdo);
