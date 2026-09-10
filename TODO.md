@@ -22,11 +22,22 @@
 - `hranice.json`: Kladky, Krasíkov a Roubanina nejsou provozované (82/38).
 
 ## Rozdělané – pokračovat tady
-1. **Hromadný import kandidátek 2022 za okres.**
-   - `vysledky_obce_okres?datumvoleb=20220923&nuts=CZ0533` (předvyplněné v importu)
-     dává **výsledky a jen zvolené zastupitele**, ne celé kandidátní listiny.
-   - Celé listiny mají být v **Registrech** (opendata KV2022 → Registry XML/Excel/CSV).
-     Vyzkoušet, a když se sloupce netrefí, doplnit je do `KPOLE`.
+1. **Hromadný import kandidátek 2022 za okres – zbývá ho jen spustit.**
+   - Celé listiny jsou v registrech KV2022 a jsou **ve dvou souborech**:
+     `kvrk.csv` (kandidáti; název strany v něm NENÍ, jen `POR_STR_HL`) a
+     `kvros.csv` (názvy stran, `NAZEVCELK`). Nahrát oba naráz – apka je spáruje
+     přes `KODZASTUP` + `POR_STR_HL`. V importu je na to tlačítko
+     **🌐 Stáhnout registry KV2022 (kvrk + kvros)**.
+   - Sloupce registrů `KPOLE` trefuje bez úprav (ověřeno na hlavičkách z popisu
+     registrů): KODZASTUP→kód, POR_STR_HL→číslo strany, PORCISLO, JMENO,
+     PRIJMENI, TITULPRED/ZA, VEK, POVOLANI, BYDLISTEN, PSTRANA, NSTRANA,
+     PLATNOST, POCHLASU, MANDAT.
+   - Soubory jsou za **celou ČR** (~200 tis. řádků), takže stažení i čtení chvíli
+     trvá; apka si nechá jen naše obce (podle kódu), zbytek zahodí.
+   - Když prohlížeč stahování nepustí (CORS), otevřít odkaz, uložit na disk
+     a nahrát tlačítkem **Vybrat soubor s kandidátkami** – zvládne i .zip.
+   - `vysledky_obce_okres?datumvoleb=20220923&nuts=CZ0533` naopak dává
+     **výsledky a jen zvolené zastupitele** – hodí se na výsledky voleb, ne sem.
    - Špatný import jde smazat: okno Kandidátky 2022 → 🗑 Smazat načtené kandidátky.
 2. **Hromadné výsledky 2022 za okres** – z téhož XML by šlo naplnit `vysledky_2022`
    všem obcím naráz (dnes se vkládá po obcích).

@@ -2181,6 +2181,12 @@ document.getElementById("zamFile").addEventListener("change",onZamFile);
 var _kandFiles=[], _kandPre=null;
 // XML za cely okres Svitavy (obce -> volebni strany -> kandidati i s hlasy)
 var KV2022_OKRES="https://volby.gov.cz/pls/kv2022/vysledky_obce_okres?datumvoleb=20220923&nuts=CZ0533";
+/* Registry KV2022 = cele kandidatni listiny za celou CR. Jsou ve dvou souborech
+   a je potreba nacist oba naraz: kvrk ma kandidaty (bez nazvu strany, jen
+   POR_STR_HL), kvros ma nazvy volebnich stran. Apka je spari podle kodu
+   zastupitelstva a poradi strany na hlasovacim listku a nechá si jen nase obce. */
+var KV2022_REG=[["kvrk","kandidáti","https://www.volby.cz/opendata/kv2022/csv_od/kvrk.csv"],
+                ["kvros","názvy volebních stran","https://www.volby.cz/opendata/kv2022/csv_od/kvros.csv"]];
 
 // pole, která z kandidátky potřebujeme; ke každému názvy sloupců, jak je píše volby.cz
 var KPOLE=[
@@ -2434,15 +2440,11 @@ function kandFromBuffer(name,buf){
   var r=kandTable(name,kandDecode(buf));
   return Promise.resolve({name:name,hdr:r.hdr,rows:r.rows});
 }
-function kandReadFile(f){
-  return new Promise(function(res,rej){
-    var fr=new FileReader();
-    fr.onload=function(){res(fr.result);};
-    fr.onerror=function(){rej(new Error(f.name+": soubor se nepodařilo otevřít"));};
-    fr.readAsArrayBuffer(f);
-  }).then(function(buf){
-    if(/\.zip$/i.test(f.name)){
-      return kandUnzip(buf).then(function(list){
+// jeden stažený / vybraný soubor -> pole tabulek (ZIP jich dá víc)
+function kandTablesFromBuffer(name,buf){
+  var jeZip=/\.zip$/i.test(name)||(buf.byteLength>1&&new Uint8Array(buf,0,2)[0]===0x50&&new Uint8Array(buf,0,2)[1]===0x4b);
+  var p=jeZip
+    ? kandUnzip(buf).then(function(list){
         return Promise.all(list.map(function(e){
           return kandFromBuffer(e.name,e.buf).then(null,function(){return null;});  // nečitelný soubor v balíku přeskoč
         })).then(function(t){
@@ -2450,13 +2452,20 @@ function kandReadFile(f){
           if(!ok.length)throw new Error("ze ZIPu se nepodařilo přečíst žádnou tabulku");
           return ok;
         });
-      });
-    }
-    return kandFromBuffer(f.name,buf).then(function(x){return [x];});
-  }).then(null,function(e){
+      })
+    : kandFromBuffer(name,buf).then(function(x){return [x];});
+  return p.then(null,function(e){
     var m=(e&&e.message)?e.message:String(e);
-    throw new Error(m.indexOf(f.name)===0?m:(f.name+": "+m));
+    throw new Error(m.indexOf(name)===0?m:(name+": "+m));
   });
+}
+function kandReadFile(f){
+  return new Promise(function(res,rej){
+    var fr=new FileReader();
+    fr.onload=function(){res(fr.result);};
+    fr.onerror=function(){rej(new Error(f.name+": soubor se nepodařilo otevřít"));};
+    fr.readAsArrayBuffer(f);
+  }).then(function(buf){return kandTablesFromBuffer(f.name,buf);});
 }
 
 /* ---- přiřazení sloupců (automaticky, uživatel může přepsat) ---- */
@@ -2803,10 +2812,15 @@ function kandOpen(rok){
       : "Kandidátky zatím nejsou načtené.")+"</div>"+
     "<div class='hint' style='margin-top:10px'><b>Odkud vzít data za celý okres naráz:</b> "+
     (_KROK==="2022"
-      ? "<a href='https://www.volby.cz/opendata/kv2022/kv2022_opendata.htm' target='_blank' rel='noopener'>volby.cz/opendata – KV2022</a> → "+
-        "<b>Registry – XML / Excel / CSV (CSVW)</b>: tam jsou <b>celé kandidátní listiny</b> (všichni kandidáti), to je pro tuhle složku to pravé.<br>"+
+      ? "Celé kandidátní listiny 2022 jsou v <b>registrech</b> na "+
+        "<a href='https://www.volby.cz/opendata/kv2022/kv2022_opendata.htm' target='_blank' rel='noopener'>volby.cz/opendata – KV2022</a>, "+
+        "a to ve <b>dvou souborech, které je potřeba nahrát oba</b>: "+
+        KV2022_REG.map(function(x){
+          return "<a href='"+esc(x[2])+"' target='_blank' rel='noopener'><b>"+esc(x[0])+".csv</b></a> ("+esc(x[1])+")";
+        }).join(" a ")+". "+
+        "Apka je spáruje podle kódu zastupitelstva a čísla strany na lístku – <b>kvrk</b> má jen číslo strany, název je až v <b>kvros</b>.<br>"+
         "<span class='prazdne'>Pozor: soubor <a href='"+KV2022_OKRES+"' target='_blank' rel='noopener'>vysledky_obce_okres</a> "+
-        "(níž předvyplněný) obsahuje výsledky a <b>jen zvolené zastupitele</b>, ne celé kandidátky – hodí se na výsledky voleb.</span> "
+        "obsahuje výsledky a <b>jen zvolené zastupitele</b>, ne celé kandidátky – hodí se na výsledky voleb.</span> "
       : "<a href='https://volby.gov.cz/opendata/opendata.htm' target='_blank' rel='noopener'>volby.gov.cz/opendata</a> → "+
         "volby do zastupitelstev obcí 2026 → <b>Registry – zip balíky</b> → <b>CSV (CSVW)</b> (nebo Excel, XML, JSON – je to jedno). ")+
     "Stažený <b>.zip</b> nahraj sem rovnou, apka si ho rozbalí, najde v něm kandidáty a volební strany, zbytek balíku "+
@@ -2819,8 +2833,10 @@ function kandOpen(rok){
     "<div class='zamwarn'>Soubor se nikam neposílá – přečte se v prohlížeči a uloží se jen to, co patří našim obcím, do Firebase za přihlášením.</div>"+
     "<div class='r' style='display:block;margin-top:10px'><b>Nebo rovnou z adresy</b>"+
     "<div style='display:flex;gap:8px;flex-wrap:wrap;margin-top:6px'>"+
-    "<input id='kd_url' style='flex:1;min-width:220px' value=\""+(_KROK==="2022"?esc(KV2022_OKRES):"")+"\" placeholder='https://volby.gov.cz/… (odkaz na data, ne na stránku)' />"+
-    "<button class='btn ghost' id='kd_get'>🌐 Stáhnout</button></div></div>"+
+    "<input id='kd_url' style='flex:1;min-width:220px' value=\""+(_KROK==="2022"?esc(KV2022_REG[0][2]):"")+"\" placeholder='https://volby.gov.cz/… (odkaz na data, ne na stránku)' />"+
+    "<button class='btn ghost' id='kd_get'>🌐 Stáhnout</button></div>"+
+    (_KROK==="2022"?"<div class='mtools'><button class='btn' id='kd_reg'>🌐 Stáhnout registry KV2022 (kvrk + kvros)</button></div>":"")+
+    "</div>"+
     "<div class='hint'>Stahuje tvůj prohlížeč, ne server – takže to projde jen u adres, které stahování z cizí stránky povolují. "+
     "Když prohlížeč odmítne, ulož si soubor na disk a nahraj ho tlačítkem níž.</div>"+
     "<details class='sek2' style='margin-top:10px'><summary><span>📋 Nebo vložit tabulku ze schránky</span><span class='chev'>▾</span></summary>"+
@@ -2837,6 +2853,10 @@ function kandOpen(rok){
   });
   document.getElementById("kd_file").addEventListener("click",function(){document.getElementById("kandFile").click();});
   document.getElementById("kd_get").addEventListener("click",kandFetchUrl);
+  var reg=document.getElementById("kd_reg");
+  if(reg)reg.addEventListener("click",function(){
+    kandFetchUrl(KV2022_REG.map(function(x){return x[2];}));
+  });
   document.getElementById("kd_pastego").addEventListener("click",function(){
     var t=(document.getElementById("kd_paste").value||"").trim();
     if(!t){kandMsg("Nejdřív vlož tabulku do pole.");return;}
@@ -2850,19 +2870,26 @@ function kandOpen(rok){
   document.getElementById("kd_back").addEventListener("click",function(){document.getElementById("modal").classList.remove("show");});
   var d=document.getElementById("kd_del");if(d)d.addEventListener("click",kandClear);
 }
-function kandFetchUrl(){
-  var el=document.getElementById("kd_url"), url=(el&&el.value||"").trim();
-  if(!url){kandMsg("Vlož adresu souboru s kandidátkami.");return;}
-  if(!/^https?:\/\//i.test(url)){kandMsg("⚠️ Adresa musí začínat http:// nebo https://");return;}
-  kandMsg("Stahuji…");
-  fetch(url).then(function(r){
-    if(!r.ok)throw new Error("server odpověděl "+r.status+" "+r.statusText);
-    return r.text();
-  }).then(function(t){
-    var jm=url.split("?")[0].split("/").pop()||"data";
-    var tb=kandTable(jm,t);
-    _kandFiles=[{name:jm,hdr:tb.hdr,rows:tb.rows,map:kandAutoMap(tb.hdr),obec:null,kind:""}];
-    _kandFiles[0].kind=kandKind(_kandFiles[0].map,null,_kandFiles[0].hdr);
+// Bez argumentu bere adresu z pole; registry se stahují po dvou naráz (kvrk+kvros).
+function kandFetchUrl(urls){
+  if(!Array.isArray(urls)||!urls.length){          // jako click handler přijde Event
+    var el=document.getElementById("kd_url"), url=(el&&el.value||"").trim();
+    if(!url){kandMsg("Vlož adresu souboru s kandidátkami.");return;}
+    urls=[url];
+  }
+  for(var i=0;i<urls.length;i++)
+    if(!/^https?:\/\//i.test(urls[i])){kandMsg("⚠️ Adresa musí začínat http:// nebo https://");return;}
+  kandMsg("Stahuji "+urls.length+" "+pl(urls.length,"soubor","soubory","souborů")+"… "+
+    "Registry jsou za celou ČR, takže to chvíli trvá.");
+  Promise.all(urls.map(function(u){
+    var jm=u.split("?")[0].split("/").pop()||"data";
+    return fetch(u).then(function(r){
+      if(!r.ok)throw new Error("server odpověděl "+r.status+" "+r.statusText);
+      return r.arrayBuffer();                      // ZIP ani XLSX se nesmí číst jako text
+    }).then(function(buf){return kandTablesFromBuffer(jm,buf);});
+  })).then(function(list){
+    var vse=[];list.forEach(function(a){vse=vse.concat(a);});
+    _kandFiles=vse.map(function(F){F.map=kandAutoMap(F.hdr);F.obec=null;F.kind=kandKind(F.map,null,F.hdr);return F;});
     kandMsg("");
     kandRender();
   }).catch(function(e){
