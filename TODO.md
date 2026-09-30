@@ -18,6 +18,11 @@
   přepínač období, prázdný sloupec Poznámka.
 - **Volební programy** u obce: rozcestník + ruční ukládání odkazů (M. Třebová,
   Polička, Litomyšl, Svitavy mají ověřené odkazy).
+- **Přílohy k volebním programům** (v43): v editoru programů u každé strany
+  📎 Soubor (PDF/obrázek) a 📷 Vyfotit. Data jdou do uzlu `volby_soubory`
+  (fotky zmenšené na 2000 px, limit 6 MB), u obce jen metadata
+  `programy_soubory_2026`. **Ve Firebase je potřeba pravidlo pro
+  `volby_soubory`** (stejné jako u `volby_obce`).
 - **Porovnání s AquaControlem** + „Srovnat podle hranice.json".
 - `hranice.json`: Kladky, Krasíkov a Roubanina nejsou provozované (82/38).
 

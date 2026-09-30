@@ -144,6 +144,12 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 .kstr ol{margin:6px 0 0;padding-left:26px;font-size:.9rem;}
 .kstr ol li{margin:3px 0;}
 .kstr .kdet{color:#8a8272;font-size:.78rem;}
+.pgsoubory{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 0;}
+.pgsoubor{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--sedaramecek);border-radius:14px;padding:2px 9px;font-size:.8rem;background:#fff;color:var(--zelena);cursor:pointer;text-decoration:none;max-width:100%;}
+.pgsoubor span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;}
+.pgsoubor .pgdel{color:#b44;cursor:pointer;margin-left:2px;}
+.pgup{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:-2px 0 10px 128px;}
+@media (max-width:560px){.pgup{margin-left:0;}}
 .zast li.zvyr,.kstr ol li.zvyr{background:#fff3ce;border-radius:6px;box-shadow:0 0 0 5px #fff3ce;}
 .zamcard .kotva{cursor:pointer;border-bottom:1px dashed #bfc7ba;}
 .zamcard .kotva:hover{color:var(--zelena);border-bottom-color:var(--zelena);}
@@ -1021,21 +1027,38 @@ function programyHTML(o){
     return "<a href='"+esc(z.u)+"' target='_blank' rel='noopener'>"+esc(z.t)+"</a>";}).join(" · ")+"</span></div>";
   if(!s26.length)return h+"<div class='hint'>Volební strany zatím nenačtené — nejdřív načti kandidátky 2026.</div>";
   return h+s26.map(function(s,i){
-    var u=ulo[programKey(s,i)];
+    var u=ulo[programKey(s,i)], fs=pgSoubory(o,programKey(s,i));
     return "<div class='kstr'><div class='khdr'><span class='kc'>"+esc(String(s.c||"?"))+"</span>"+
       "<span>"+hl(s.nazev||"(bez názvu)",_Q)+"</span></div>"+
-      "<div class='kdet'>"+(u?"\ud83d\udcc4 "+link(u,"web"):"<span class='prazdne'>program nevyplněn</span>")+
-      " · "+hledatLink(dotazNaProgram(o,s),"vyhledat")+"</div></div>";
+      "<div class='kdet'>"+(u?"\ud83d\udcc4 "+link(u,"web"):(fs.length?"":"<span class='prazdne'>program nevyplněn</span>"))+
+      (u||!fs.length?" · ":"")+hledatLink(dotazNaProgram(o,s),"vyhledat")+"</div>"+
+      pgSouboryHTML(fs,false)+"</div>";
   }).join("");
 }
 function openProgramEditor(){
   var o=_CUR, s26=o.strany_2026||[], ulo=o.programy_2026||{};
   if(!s26.length){renderModal();return;}
-  document.getElementById("mbody").innerHTML="<h2>\ud83d\udcc4 Volební programy — "+esc(o.nazev)+"</h2>"+
-    "<div class='hint'>Odkaz na program strany (web, PDF, Facebook). Prázdné pole odkaz smaže.</div>"+
-    s26.map(function(s,i){return editRow((s.c!=null?s.c+" · ":"")+(s.nazev||"(bez názvu)"),"pg_"+programKey(s,i),ulo[programKey(s,i)]);}).join("")+
-    "<div class='mtools'><button class='btn' id='pg_save'>\ud83d\udcbe Uložit</button><button class='btn ghost' id='pg_back'>← Zpět</button></div>"+
+  document.getElementById("mbody").innerHTML="<h2>📄 Volební programy — "+esc(o.nazev)+"</h2>"+
+    "<div class='hint'>Odkaz na program strany (web, PDF, Facebook) — prázdné pole odkaz smaže. "+
+    "Program jde i přiložit: <b>📎 Soubor</b> (PDF nebo obrázek z mobilu či počítače) nebo <b>📷 Vyfotit</b> leták. "+
+    "Soubory se ukládají hned, tlačítko Uložit je jen pro odkazy.</div>"+
+    s26.map(function(s,i){var k=programKey(s,i);
+      return editRow((s.c!=null?s.c+" · ":"")+(s.nazev||"(bez názvu)"),"pg_"+k,ulo[k])+
+        "<div class='pgup'><span id='pgf_"+k+"'>"+pgSouboryHTML(pgSoubory(o,k),true)+"</span>"+
+        "<button class='btn ghost small pgpick' data-k='"+k+"'>📎 Soubor</button>"+
+        "<button class='btn ghost small pgfoto' data-k='"+k+"'>📷 Vyfotit</button></div>";}).join("")+
+    "<input type='file' id='pgFile' accept='application/pdf,image/*,.pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx,.odt' multiple style='display:none' />"+
+    "<input type='file' id='pgFoto' accept='image/*' capture='environment' style='display:none' />"+
+    "<div class='mtools'><button class='btn' id='pg_save'>💾 Uložit</button><button class='btn ghost' id='pg_back'>← Zpět</button></div>"+
     "<div class='msg' id='mmsg'></div>";
+  var cil=null;
+  function vybrano(e){var fl=Array.prototype.slice.call(e.target.files||[]);e.target.value="";if(cil&&fl.length)pgNahraj(o,cil,fl);}
+  document.getElementById("pgFile").addEventListener("change",vybrano);
+  document.getElementById("pgFoto").addEventListener("change",vybrano);
+  Array.prototype.forEach.call(document.querySelectorAll("#mbody .pgpick,#mbody .pgfoto"),function(b){
+    b.addEventListener("click",function(){cil=b.getAttribute("data-k");
+      document.getElementById(b.classList.contains("pgfoto")?"pgFoto":"pgFile").click();});});
+  pgNavazSoubory(o);
   document.getElementById("pg_back").addEventListener("click",function(){renderModal();});
   document.getElementById("pg_save").addEventListener("click",function(){
     var obj={},n=0;
@@ -1043,8 +1066,111 @@ function openProgramEditor(){
     document.getElementById("mmsg").textContent="Ukládám…";
     FDB.ref("volby_obce/"+o.kod).update({programy_2026:n?obj:null,upravil:_USER.email,upravil_ts:Date.now()})
       .then(function(){o.programy_2026=n?obj:null;renderModal();})
-      .catch(function(e){document.getElementById("mmsg").textContent="\u26a0\ufe0f "+(e&&e.message?e.message:e);});
+      .catch(function(e){document.getElementById("mmsg").textContent="⚠️ "+(e&&e.message?e.message:e);});
   });
+}
+/* ---- Přílohy k programům ---------------------------------------------
+   Vyfocený leták nebo PDF. Firebase Storage v projektu nemáme, takže soubor
+   jde jako data-URL do Realtime Database – ale do samostatného uzlu
+   volby_soubory/<id>, aby se nestahoval s celým volby_obce. U obce zůstanou
+   jen metadata (programy_soubory_2026/<klíč strany>/<id>). Fotky se před
+   uložením zmenší (mobil fotí klidně 5–10 MB), PDF jde beze změny. */
+var PG_MAX=6*1024*1024, PG_FOTO_PX=2000;
+function pgSoubory(o,k){var m=((o.programy_soubory_2026||{})[k])||{};
+  return Object.keys(m).map(function(id){var x=m[id]||{};return {id:id,n:x.n||"soubor",t:x.t||"",v:x.v||0};})
+    .sort(function(a,b){return a.id<b.id?-1:1;});}
+function pgVel(v){return v>=1048576?(v/1048576).toFixed(1).replace(".",",")+" MB":Math.max(1,Math.round(v/1024))+" kB";}
+function pgIkona(t){return t.indexOf("image/")===0?"🖼️":(t==="application/pdf"?"📄":"📎");}
+function pgSouboryHTML(fs,smazat){
+  if(!fs.length)return "";
+  return "<div class='pgsoubory'>"+fs.map(function(f){
+    return "<a class='pgsoubor' data-id='"+esc(f.id)+"' title='"+esc(f.n+" ("+pgVel(f.v)+")")+"'>"+pgIkona(f.t)+
+      "<span>"+esc(f.n)+"</span>"+(smazat?"<b class='pgdel' data-id='"+esc(f.id)+"' title='Smazat'>✕</b>":"")+"</a>";
+  }).join("")+"</div>";
+}
+// Klik na přílohu ji otevře, ✕ v editoru ji smaže.
+function pgNavazSoubory(o){
+  Array.prototype.forEach.call(document.querySelectorAll("#mbody .pgsoubor"),function(el){
+    el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();
+      var id=el.getAttribute("data-id");
+      if(e.target.classList.contains("pgdel"))pgSmaz(o,id);else pgOtevri(id,(el.querySelector("span")||el).textContent);});});
+}
+function pgNajdiKlic(o,id){var m=o.programy_soubory_2026||{};
+  for(var k in m)if(m[k]&&m[k][id])return k;return null;}
+function pgChyba(e){var t=(e&&e.message)?e.message:String(e);
+  return "⚠️ "+esc(t)+(/permission/i.test(t)?"<br>Ve Firebase je potřeba přidat pravidlo pro uzel <b>volby_soubory</b> (stejné jako u volby_obce).":"");}
+function pgZprava(h){var m=document.getElementById("mmsg");if(m)m.innerHTML=h;}
+function pgPrekresli(o,k){var el=document.getElementById("pgf_"+k);if(el){el.innerHTML=pgSouboryHTML(pgSoubory(o,k),true);pgNavazSoubory(o);}}
+function pgNahraj(o,k,files){
+  var i=0,ok=0;
+  (function dalsi(){
+    if(i>=files.length){pgZprava(ok?"✔ Přiloženo: "+ok+" "+pl(ok,"soubor","soubory","souborů")+".":"");return;}
+    var f=files[i++];
+    pgZprava("Nahrávám "+esc(f.name||"soubor")+"…");
+    pgPriprav(f).then(function(x){
+      if(x.data.length>PG_MAX*1.37)throw new Error("Soubor "+(f.name||"")+" je moc velký ("+pgVel(x.v)+"), limit je "+pgVel(PG_MAX)+".");
+      var id=FDB.ref("volby_soubory").push().key, meta={n:x.n,t:x.t,v:x.v,kdo:_USER.email,ts:Date.now()}, upd={};
+      upd["volby_soubory/"+id]={d:x.data,n:x.n,t:x.t,kod:o.kod,k:k,kdo:_USER.email,ts:meta.ts};
+      upd["volby_obce/"+o.kod+"/programy_soubory_2026/"+k+"/"+id]=meta;
+      upd["volby_obce/"+o.kod+"/upravil"]=_USER.email;
+      upd["volby_obce/"+o.kod+"/upravil_ts"]=meta.ts;
+      return FDB.ref().update(upd).then(function(){
+        var m=o.programy_soubory_2026=o.programy_soubory_2026||{};(m[k]=m[k]||{})[id]=meta;ok++;pgPrekresli(o,k);});
+    }).then(dalsi).catch(function(e){pgZprava(pgChyba(e));});
+  })();
+}
+// Fotku zmenšíme na PG_FOTO_PX delší strany a uložíme jako JPEG. Když ji
+// prohlížeč neumí dekódovat (třeba HEIC na počítači), jde soubor tak jak je.
+function pgPriprav(f){
+  var t=f.type||"", n=f.name||"soubor";
+  function jakJe(){return new Promise(function(res,rej){var r=new FileReader();
+    r.onload=function(){res({data:r.result,n:n,t:t||"application/octet-stream",v:f.size});};
+    r.onerror=function(){rej(r.error||new Error("Soubor nejde přečíst."));};r.readAsDataURL(f);});}
+  if(t.indexOf("image/")!==0||t==="image/gif"||t==="image/svg+xml")return jakJe();
+  return new Promise(function(res){
+    var url=URL.createObjectURL(f), img=new Image();
+    img.onload=function(){
+      var w=img.naturalWidth,h=img.naturalHeight,q=Math.min(1,PG_FOTO_PX/Math.max(w,h));
+      var c=document.createElement("canvas");c.width=Math.round(w*q);c.height=Math.round(h*q);
+      var g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0,c.width,c.height);
+      URL.revokeObjectURL(url);
+      var d=c.toDataURL("image/jpeg",0.82);
+      if(d.indexOf("data:image/jpeg")!==0||(d.length*0.75>f.size&&f.size<=PG_MAX)){res(jakJe());return;}
+      res({data:d,n:n.replace(/\.[^.]*$/,"")+".jpg",t:"image/jpeg",v:Math.round((d.length-23)*0.75)});
+    };
+    img.onerror=function(){URL.revokeObjectURL(url);res(jakJe());};
+    img.src=url;
+  });
+}
+function pgBlob(d){var i=d.indexOf(","),t=(d.slice(5,i).split(";")[0])||"application/octet-stream";
+  var b=atob(d.slice(i+1)),a=new Uint8Array(b.length);for(var j=0;j<b.length;j++)a[j]=b.charCodeAt(j);
+  return new Blob([a],{type:t});}
+function pgOtevri(id,nazev){
+  // Okno otevřít hned při kliku, jinak ho prohlížeč po čekání na data zablokuje.
+  var w=window.open("","_blank");
+  if(w)try{w.document.write("<p style='font-family:sans-serif'>Načítám "+esc(nazev||"soubor")+"…</p>");}catch(e){}
+  FDB.ref("volby_soubory/"+id).get().then(function(s){
+    var x=s.val();if(!x||!x.d)throw new Error("Soubor se nenašel.");
+    var url=URL.createObjectURL(pgBlob(x.d));
+    if(w){w.location.href=url;}
+    else{var a=document.createElement("a");a.href=url;a.download=x.n||"soubor";document.body.appendChild(a);a.click();a.remove();}
+    setTimeout(function(){URL.revokeObjectURL(url);},120000);
+  }).catch(function(e){if(w)w.close();pgZprava(pgChyba(e));});
+}
+function pgSmaz(o,id){
+  var k=pgNajdiKlic(o,id);if(!k)return;
+  var n=((o.programy_soubory_2026[k]||{})[id]||{}).n||"soubor";
+  if(!confirm("Smazat přílohu „"+n+"“?"))return;
+  var upd={};
+  upd["volby_soubory/"+id]=null;
+  upd["volby_obce/"+o.kod+"/programy_soubory_2026/"+k+"/"+id]=null;
+  upd["volby_obce/"+o.kod+"/upravil"]=_USER.email;
+  upd["volby_obce/"+o.kod+"/upravil_ts"]=Date.now();
+  FDB.ref().update(upd).then(function(){
+    delete o.programy_soubory_2026[k][id];
+    if(!Object.keys(o.programy_soubory_2026[k]).length)delete o.programy_soubory_2026[k];
+    pgPrekresli(o,k);pgZprava("Příloha smazána.");
+  }).catch(function(e){pgZprava(pgChyba(e));});
 }
 /* ---- Tiskove sestavy -------------------------------------------------
    Sestava se sestavi do skryteho divu .tisk a zavola se window.print();
@@ -1085,9 +1211,11 @@ function tiskKandTab(kand){
 }
 function tiskStranaSekce(o,st,i,rok){
   var kand=st.kand||[], u=(rok==="2022")?null:(o.programy_2026||{})[programKey(st,i)];
+  var fs=(rok==="2022")?[]:pgSoubory(o,programKey(st,i));
   return "<div class='tsekce'><h2>"+esc((st.c!=null?st.c+" · ":"")+(st.nazev||"(bez názvu)"))+"</h2>"+
     "<div class='tmeta'>"+esc(o.nazev)+(st.typ?" · "+esc(st.typ):"")+" · "+kand.length+" "+
-    pl(kand.length,"kandidát","kandidáti","kandidátů")+(u?" · program: "+esc(u):"")+"</div>"+
+    pl(kand.length,"kandidát","kandidáti","kandidátů")+(u?" · program: "+esc(u):"")+
+    (fs.length?" · přiložený program: "+esc(fs.map(function(f){return f.n;}).join(", ")):"")+"</div>"+
     tiskKandTab(kand)+"</div>";
 }
 // Samostatna sestava za jednu stranu (vlastni hlavicka i paticka).
@@ -1437,6 +1565,7 @@ function renderModal(){
   document.getElementById("mbody").innerHTML=body;
   Array.prototype.forEach.call(document.querySelectorAll("#mbody .cal"),function(el){el.addEventListener("click",function(e){e.stopPropagation();icsFromEl(el);});});
   Array.prototype.forEach.call(document.querySelectorAll("#mbody .secedit"),function(el){el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();var s=el.getAttribute("data-sec");if(s==="poznamky")openPoznEditor();else if(s==="navstevy")openNavEditor();else if(s==="programy")openProgramEditor();else if(s==="vysledky")openVysledkyEditor();});});
+  if(!_EDIT)pgNavazSoubory(o);
   // Okno se zobrazuje až po renderModal(), takže scrollovat teď by bylo do
   // skrytého prvku a neudělalo by to nic – proto až v dalším snímku.
   if(!_EDIT&&_Q)pozdeji(zamerZvyrazneni);
@@ -3178,7 +3307,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-08-28 · v42 (import 2022: oprava jmen kandidátů, návod na registry)";
+var VERZE="2026-09-30 · v43 (volební programy: přiložení PDF / fotky)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
