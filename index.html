@@ -1579,7 +1579,11 @@ function openVysledkyEditor(rok){
    (stejne jako sloupce u kandidatek). Ulozi se do vysledky_<rok> u nasich
    obci; kdyz je nactena kandidatka stejneho roku, doplni se k ni hlasy
    a priznak zvolen. */
-var VX_URL=function(rok){return "https://volby.gov.cz/pls/kv"+rok+"/vysledky_obce_okres?datumvoleb="+VDATUM[rok]+"&nuts=CZ0533";};
+// 2026: ověřená adresa z volby.gov.cz/opendata (appdata/…/okresy/…_CZ0533.xml);
+// 2022 zůstává na staré podobě adresy
+var VX_URL=function(rok){return rok==="2026"
+  ? "https://volby.gov.cz/appdata/kv2026/"+VDATUM[rok]+"/odata/okresy/vysledky_obce_okres_CZ0533.xml"
+  : "https://volby.gov.cz/pls/kv"+rok+"/vysledky_obce_okres?datumvoleb="+VDATUM[rok]+"&nuts=CZ0533";};
 var _VXROK="2026", _vxRes=null;
 var VXA={
   obec:["cisobec","kodzastup","kodobce","kodobec","kodzast","obec"],
@@ -3619,7 +3623,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-10-12 · v44 (výsledky voleb 2026: složka, detail obce, import za celý okres z XML)";
+var VERZE="2026-10-12 · v45 (výsledky voleb 2026: ověřená adresa XML za okres)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>

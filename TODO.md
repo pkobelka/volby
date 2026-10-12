@@ -1,4 +1,4 @@
-# Kde jsme skončili (12. 10. 2026, verze v44)
+# Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
 - **Výsledky voleb 2026** (v44): pod Volby 2026 podsložka *Výsledky voleb*, v detailu
@@ -51,7 +51,8 @@
      **výsledky a jen zvolené zastupitele** – hodí se na výsledky voleb, ne sem.
    - Špatný import jde smazat: okno Kandidátky 2022 → 🗑 Smazat načtené kandidátky.
 2. ~~Hromadné výsledky za okres~~ – hotové v v44 (📊 Výsledky voleb). Ověřit na ostrém XML
-   2026, že atributy sedí (parser hledá podle aliasů, viz `VXA`).
+   Ověřeno 12. 10. 2026 na ostrém XML 2026 (načteno a uloženo). Adresa:
+   `https://volby.gov.cz/appdata/kv2026/20261009/odata/okresy/vysledky_obce_okres_CZ0533.xml`
 3. Ověřit, jestli prohlížeč pustí stahování přímo z volby.gov.cz (CORS).
 
 ## Poznámky k datům
