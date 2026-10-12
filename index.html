@@ -362,7 +362,8 @@ function slozkaOf(k){return (k==="k26"||k==="v26")?"2026":(k==="vse"?"vse":"2022
 // rok vysledkove podslozky (v22 / v26), jinak null
 function fKdoVys(k){return k==="v22"?"2022":(k==="v26"?"2026":null);}
 // obdobi, ve kterem se hledaji lide (klic shod v Kontrole VHOS)
-function fKdoObd(k){return k==="z22"?"nyni":(k==="k26"?"2026":(k==="k22"?"2022":null));}
+// zv26 = zvolení ve volbách 2026 (z výsledků), posuzuje se zvlášť od kandidatury
+function fKdoObd(k){return k==="z22"?"nyni":(k==="k26"?"2026":(k==="k22"?"2022":(k==="v26"?"zv26":null)));}
 try{
   var _fk=localStorage.getItem("volby_kdo");
   var _mig={nyni:"z22","2026":"k26","2022":"v22"};
@@ -2128,6 +2129,9 @@ function obecSlots(o){
       kjmena(o,rok).forEach(function(x){s.push(["kandidát "+rok,x,rok]);});
     }
   });
+  zvoleniV(o,"2026").forEach(function(z){
+    s.push(["zvolen 2026"+(z.strana?" – "+(z.c?"č. "+z.c+" ":"")+z.strana:""),z.jmeno,"zv26"]);
+  });
   return s;
 }
 // popis místa na kandidátce: "kandidát 2026 – 3. na listině č. 1 Naše obec"
@@ -2171,7 +2175,7 @@ function collectHits(slots,ctx){
 }
 function vKeyOf(h){
   return String(h.kod||h.svid||"x")+"__"+nameKey(h.name).replace(/ /g,"_")+
-    (h.obd==="2026"?"__k26":(h.obd==="2022"?"__k22":""));
+    (h.obd==="2026"?"__k26":(h.obd==="2022"?"__k22":(h.obd==="zv26"?"__z26":"")));
 }
 function recomputeZam(){
   ZAMHITS={jista:[],mozna:[],neposouzene:0};ZAMBYKOD={};ZAMBYKOD26={};
@@ -2186,7 +2190,7 @@ function recomputeZam(){
     if(!h.verd)ZAMHITS.neposouzene++;
     ZAMHITS[h.typ].push(h);
     // štítek na kartě obce jen u shod, které nejsou odškrtnuté jako náhoda jmen
-    if(h.typ==="jista"&&h.kod&&(!h.verd||h.verd.stav!=="nahoda")){
+    if(h.typ==="jista"&&h.kod&&h.obd!=="zv26"&&(!h.verd||h.verd.stav!=="nahoda")){
       var cil=(h.obd==="2026")?ZAMBYKOD26:ZAMBYKOD;
       (cil[h.kod]=cil[h.kod]||[]).push(h);
     }
@@ -2221,10 +2225,11 @@ function zamBadge(o){
 function zamStav(){
   if(!ZAM.length)return "";
   function osob(obd){var m={};ZAMHITS.jista.forEach(function(h){if(h.obd===obd)m[h.emp.id]=1;});return Object.keys(m).length;}
-  var nN=osob("nyni"), nK=osob("2026"), nK22=osob("2022"), nw=ZAMHITS.neposouzene||0;
+  var nN=osob("nyni"), nK=osob("2026"), nK22=osob("2022"), nZ26=osob("zv26"), nw=ZAMHITS.neposouzene||0;
   return "\uD83D\uDC77 Kontrola VHOS: "+nN+" "+pl(nN,"zaměstnanec","zaměstnanci","zaměstnanců")+
     " ve funkcích 2022–2026 · \uD83D\uDDF3\uFE0F "+nK+" na kandidátkách 2026"+
     (nK22?" · "+nK22+" na kandidátkách 2022":"")+
+    (nZ26?" · \uD83C\uDFDB\uFE0F "+nZ26+" "+pl(nZ26,"zvolen","zvolení","zvolených")+" 2026":"")+
     (nw?" · "+nw+" k posouzení":" · vše posouzeno")+". ";
 }
 
@@ -2585,6 +2590,7 @@ function renderZamView(){
   if(!vidime.length){
     g.innerHTML="<div class='zamnone'><div style='font-size:2.2rem'>✅</div><h3>Žádná shoda jména a příjmení</h3>"+
       "<p>"+({"2026":"Nikdo ze seznamu zaměstnanců není na kandidátkách 2026.",
+        "zv26":"Nikdo ze seznamu zaměstnanců nebyl zvolen ve volbách 2026.",
         "2022":"Nikdo ze seznamu zaměstnanců nekandidoval v roce 2022.",
         "nyni":"Nikdo ze seznamu zaměstnanců není mezi starosty, radami, zastupitelstvy ani v orgánech svazků."}[_obd]
         ||"Nikdo ze seznamu zaměstnanců není mezi starosty, radami, zastupitelstvy, orgány svazků ani na kandidátkách.")+"</p>"+
@@ -2598,11 +2604,12 @@ function renderZamView(){
   function blok(obd,nadpis){
     var mine=vidime.filter(function(h){return h.obd===obd;});
     var nove=mine.filter(function(h){return !h.verd;}), hotovo=mine.filter(function(h){return h.verd;});
-    sekce((obd==="2026"||obd==="2022")?" k26":"",nadpis+" <span class='cnt'>("+mine.length+" "+pl(mine.length,"shoda","shody","shod")+
+    sekce((obd==="2026"||obd==="2022"||obd==="zv26")?" k26":"",nadpis+" <span class='cnt'>("+mine.length+" "+pl(mine.length,"shoda","shody","shod")+
       (nove.length?" · "+nove.length+" k posouzení":" · vše posouzeno")+")</span>");
     if(!mine.length){
       var p0=document.createElement("div");p0.className="zamprazdno";
       p0.innerHTML="<span class='prazdne'>"+({"2026":"Nikdo ze zaměstnanců není na kandidátkách 2026.",
+        "zv26":"Nikdo ze zaměstnanců nebyl zvolen ve volbách 2026.",
         "2022":"Nikdo ze zaměstnanců nekandidoval v roce 2022."}[obd]
         ||"Nikdo ze zaměstnanců nemá současnou funkci v obci ani ve svazku.")+"</span>";
       g.appendChild(p0);return;
@@ -2617,6 +2624,7 @@ function renderZamView(){
     }
   }
   if(!_obd||_obd==="nyni")blok("nyni","👷 Současné funkce <span class='obd'>· 2022–2026</span>");
+  if(!_obd||_obd==="zv26")blok("zv26","🏛️ Zvolení <span class='obd'>· volby 2026 → období 2026–2030</span>");
   if(!_obd||_obd==="2022")blok("2022","🗳️ Kandidátky <span class='obd'>· volby 2022</span>");
   if(!_obd||_obd==="2026")blok("2026","🗳️ Kandidátky <span class='obd'>· volby 2026</span>");
 }
@@ -3630,7 +3638,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-10-12 · v47 (zvolení zastupitelé: strany v rámečcích, řazení podle hlasů)";
+var VERZE="2026-10-12 · v48 (Kontrola VHOS: ve Výsledcích 2026 jen zvolení 2026)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
