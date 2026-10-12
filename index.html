@@ -2205,9 +2205,18 @@ function setVerdikt(h,stav){
   }).catch(function(e){if(m)m.textContent="⚠️ "+(e&&e.message?e.message:e);});
 }
 // štítek u jména v detailu obce
+// Štítek se neukáže, když je shoda v téhle obci odškrtnutá jako „náhoda
+// jmen" (v kterémkoli období – v jedné obci je to pořád tentýž člověk).
+function zamNahoda(z,kod,name){
+  if(!kod||!z.verdikt)return false;
+  var pre=String(kod)+"__"+nameKey(name).replace(/ /g,"_");
+  return Object.keys(z.verdikt).some(function(k){
+    return (k===pre||k.indexOf(pre+"__")===0)&&z.verdikt[k]&&z.verdikt[k].stav==="nahoda";});
+}
 function zamTag(name){
   if(!ZAM.length)return "";
-  var f=zamFull(name);
+  var kod=_CUR&&_CUR.kod;
+  var f=zamFull(name).filter(function(z){return !zamNahoda(z,kod,name);});
   return f.length?"<span class='zamtag' title='"+esc(f.map(function(z){return z.jmeno+(z.stredisko?" – "+z.stredisko:"")+(z.pozice?" – "+z.pozice:"");}).join(", "))+"'>👷 VHOS</span>":"";
 }
 // badge na kartě/hlavičce obce
@@ -3638,7 +3647,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-10-12 · v48 (Kontrola VHOS: ve Výsledcích 2026 jen zvolení 2026)";
+var VERZE="2026-10-12 · v49 (štítek VHOS se neukazuje u shod označených jako náhoda jmen)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
