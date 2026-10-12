@@ -1588,12 +1588,14 @@ var _VXROK="2026", _vxRes=null;
 var VXA={
   obec:["cisobec","kodzastup","kodobce","kodobec","kodzast","obec"],
   nazobec:["nazobec","nazevobce","nazevobec","nazevzast","nazzast"],
-  strc:["porstrhl","cislostrany","porstr","cstrana","kstrana"],
+  // POR_STR_HLAS_LIST = číslo na hlasovacím lístku; VSTRANA je kód
+  // z číselníku stran (90 = SNK…), ten se za číslo brát nesmí
+  strc:["porstrhlaslist","porstrhl","cislostrany","porstr","cstrana"],
   strn:["nazstr","nazstrk","nazevstrany","nazevstrk","nazevcelk","nazevvs","nazevstr","nazev","zkratka"],
   shlasy:["hlasy","hlasyabs","hlasycelkem","pochlasu"],
   sproc:["hlasyproc","prochlasu","proc","hlasyprc","procento"],
   smand:["mandaty","pocetmandatu","zastupitelepocet","pocetzastupitelu","pocetzast","pocmandatu","mandat"],
-  skand:["kandidatipocet","pocetkandidatu","pockand","pockandidatu","kandidatu"],
+  skand:["kandidatupocet","kandidatipocet","pocetkandidatu","pockand","pockandidatu","kandidatu"],
   jm:["jmeno"], prij:["prijmeni"], cele:["jmenoprijmeni","prijmenijmeno","celejmeno"],
   tp:["titulpred"], tz:["titulza"],
   por:["porkand","porcislo","poradi","porcis","poradovecislo"],
@@ -1603,7 +1605,8 @@ var VXA={
   volici:["zapsanivolici","volicivseznamu","volici"], obalky:["vydaneobalky","vydobalky"],
   ucast:["ucastproc","ucast","volebniucast"], odevzdane:["odevzdaneobalky","odevzobalky"],
   platne:["platnehlasy","platnehlasycelkem"],
-  mandatu:["pocetmandatu","mandatu","mandaty","pocetzastupitelu","zastupitelepocet","pocetzast","pocmandatu"]
+  obvody:["pocetobvodu"],
+  mandatu:["volenozastup","pocetmandatu","mandatu","mandaty","pocetzastupitelu","zastupitelepocet","pocetzast","pocmandatu"]
 };
 function vxAttrs(el){var o={};for(var i=0;i<(el.attributes?el.attributes.length:0);i++){var a=el.attributes[i];o[kfold(a.name)]=a.value;}return o;}
 function vxGet(a,f){var n=VXA[f];for(var i=0;i<n.length;i++){var v=a[n[i]];if(v!=null&&String(v).trim()!=="")return String(v).trim();}return null;}
@@ -1650,7 +1653,7 @@ function vxParse(text,rok){
   var out={};
   obce.forEach(function(R){
     var so=R.souhrn, v={};
-    ["okrsky","okrsky_zpr","volici","obalky","ucast","odevzdane","platne"].forEach(function(f){var x=vxNum(so,f);if(x!=null)v[f]=x;});
+    ["obvody","okrsky","okrsky_zpr","volici","obalky","ucast","odevzdane","platne"].forEach(function(f){var x=vxNum(so,f);if(x!=null)v[f]=x;});
     v.strany=R.poradi.map(function(k){var s=R.strany[k];
       return {c:s.c,nazev:s.nazev||"(bez názvu)",hlasy:s.hlasy,proc:s.proc,kandidatu:s.kandidatu==null?null:Math.round(s.kandidatu),
               mandaty:s.mandaty==null?null:Math.round(s.mandaty)};})
@@ -3623,7 +3626,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-10-12 · v45 (výsledky voleb 2026: ověřená adresa XML za okres)";
+var VERZE="2026-10-12 · v46 (výsledky 2026 z XML: oprava čtení volebních stran a zvolených)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
