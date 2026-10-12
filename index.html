@@ -1461,15 +1461,19 @@ function zvoleniHTML(o,rok){
   if(!zv.length)return "";
   var by={},por=[];
   zv.forEach(function(z){var k=(z.c||"")+"|"+(z.strana||"");if(!by[k]){by[k]=[];por.push(k);}by[k].push(z);});
+  // každá strana ve vlastním rámečku jako u kandidátek (zelené číslo +
+  // tučný název), ať název listiny nesplývá se jmény; uvnitř podle hlasů
   return "<div class='r' style='display:block;margin-top:8px'><b>Zvolení zastupitelé ("+zv.length+")</b>"+
     por.map(function(k){
-      var l=by[k], st=l[0].strana||"";
-      return "<div class='kdet' style='margin-top:4px'>"+(l[0].c?l[0].c+" · ":"")+esc(st)+"</div>"+
+      var l=by[k].slice().sort(function(a,b){return (b.hlasy||0)-(a.hlasy||0);}), st=l[0].strana||"";
+      return "<div class='kstr'><div class='khdr'><span class='kc'>"+(l[0].c||"?")+"</span>"+
+        "<span>"+hl(st||"(bez názvu)",_Q)+"</span>"+
+        "<span class='kpocet'>"+l.length+" "+pl(l.length,"mandát","mandáty","mandátů")+"</span></div>"+
         "<ul class='zast'>"+l.map(function(z){
           return "<li>"+(z.tp?"<span class='kdet'>"+esc(z.tp)+"</span> ":"")+hl(z.jmeno,_Q)+
             (z.tz?" <span class='kdet'>"+esc(z.tz)+"</span>":"")+zamTag(z.jmeno)+
             (z.hlasy!=null?" <span class='kdet'>· "+vfmt(z.hlasy)+" "+pl(z.hlasy,"hlas","hlasy","hlasů")+"</span>":"")+"</li>";
-        }).join("")+"</ul>";
+        }).join("")+"</ul></div>";
     }).join("")+"</div>";
 }
 function vysledkyHTML(o,rok){
@@ -3626,7 +3630,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-10-12 · v46 (výsledky 2026 z XML: oprava čtení volebních stran a zvolených)";
+var VERZE="2026-10-12 · v47 (zvolení zastupitelé: strany v rámečcích, řazení podle hlasů)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
