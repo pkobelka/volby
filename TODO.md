@@ -1,6 +1,12 @@
-# Kde jsme skončili (28. 8. 2026, verze v42)
+# Kde jsme skončili (12. 10. 2026, verze v44)
 
 ## Hotové a nasazené v `main`
+- **Výsledky voleb 2026** (v44): pod Volby 2026 podsložka *Výsledky voleb*, v detailu
+  obce sekce *Výsledky voleb 2026* (✏️ = vložit stránku z volby.cz, jako u 2022)
+  a dole tlačítko **📊 Výsledky voleb** = import za celý okres z XML
+  „Obce – výsledky za okresy a obce" (`nuts=CZ0533`). Ukládá se do `vysledky_2026`
+  (souhrn, strany, `zvoleni`); u načtené kandidátky 2026 doplní hlasy a ✔ zvolen.
+  Funguje i pro 2022 (přepínač roku). `zastupitelstvo_2026` se zatím needituje.
 - **Hledání po slovech**: dotaz se rozpadne na slova a v textu musí sedět všechna,
   na pořadí nezáleží. Dvě příjmení jdou najít i obráceně nebo se spojovníkem
   („janoušková horváthová" i „Horváthová-Janoušková" najdou Marii Horváthovou
@@ -44,8 +50,8 @@
    - `vysledky_obce_okres?datumvoleb=20220923&nuts=CZ0533` naopak dává
      **výsledky a jen zvolené zastupitele** – hodí se na výsledky voleb, ne sem.
    - Špatný import jde smazat: okno Kandidátky 2022 → 🗑 Smazat načtené kandidátky.
-2. **Hromadné výsledky 2022 za okres** – z téhož XML by šlo naplnit `vysledky_2022`
-   všem obcím naráz (dnes se vkládá po obcích).
+2. ~~Hromadné výsledky za okres~~ – hotové v v44 (📊 Výsledky voleb). Ověřit na ostrém XML
+   2026, že atributy sedí (parser hledá podle aliasů, viz `VXA`).
 3. Ověřit, jestli prohlížeč pustí stahování přímo z volby.gov.cz (CORS).
 
 ## Poznámky k datům
