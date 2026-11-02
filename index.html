@@ -289,7 +289,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <div class="msg" id="importMsg" style="text-align:center"></div>
 <div class="hint" style="text-align:center">Vyber datové soubory (kontakty.json / svazky.json). Doplní jen prázdná pole; ručně upravené hodnoty zůstanou beze změny. Data nejsou veřejná – jen ve Firebase za přihlášením.</div>
 </div>
-<footer>Data: volby.cz KV2022 + KV2026 + weby obcí · úpravy ve Firebase (moje-budky) · <b id="verze"></b></footer>
+<footer>Data: volby.cz KV2022 + KV2026 + weby obcí · úpravy ve Firebase (moje-budky) · <b id="verze"></b> · © 2026 <a href="https://www.petrkobelka.cz" target="_blank" rel="noopener" title="www.petrkobelka.cz" style="color:inherit;text-decoration:underline">Petr Kobelka</a></footer>
 </div>
 
 <div class="modal" id="modal"><div class="modalbox"><button class="close" id="mclose">&times;</button><div id="mbody"></div></div></div>
@@ -3647,7 +3647,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-10-12 · v49 (štítek VHOS se neukazuje u shod označených jako náhoda jmen)";
+var VERZE="2026-11-02 · v50 (v patičce odkaz Petr Kobelka → www.petrkobelka.cz)";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
