@@ -1,6 +1,9 @@
 # Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
+- **Kdo je online** (v53): každý přihlášený zapisuje `volby_presence/<email>/c/<spojeni>`
+  (onDisconnect maže, `ts` = naposledy). Správce vidí vpravo nahoře 🟢 N online a seznam.
+  Pravidlo: čte jen admin / `volby_spravci`, zapisuje každý jen svůj klíč.
 - **Správa přístupů** (v51): tlačítko 👥 Přístupy vpravo nahoře vidí jen správci
   z uzlu `volby_spravci` (klíč = e-mail, tečky → čárky). Přidává/odebírá e-maily
   v `florian_login_email` (společné s Floriánem). **Ve Firebase je potřeba uzel

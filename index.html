@@ -236,7 +236,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <div class="top">
 <header><h1>🗳️ Volby 2026 – Obce okresu Svitavy</h1>
 <p>Vsechny obce okresu Svitavy. Modre = pracoviste VHOS. 2022–2026 = soucasne · 2026–2030 = po volbach.</p></header>
-<div class="userbox"><span id="who"></span><button class="btn ghost small hidden" id="pristupyBtn" title="Kdo má přístup do aplikace">👥 Přístupy</button><button class="btn ghost small" id="logout">Odhlásit</button></div>
+<div class="userbox"><span id="who"></span><button class="btn ghost small hidden" id="onlineBtn" title="Kdo je právě v aplikaci">🟢 <span id="onlineN">0</span> online</button><button class="btn ghost small hidden" id="pristupyBtn" title="Kdo má přístup do aplikace">👥 Přístupy</button><button class="btn ghost small" id="logout">Odhlásit</button></div>
 </div>
 <div class="obdobibar">
   <div class="ob-hlava">Se kterou složkou pracovat</div>
@@ -394,14 +394,14 @@ document.getElementById("pasteBtn").addEventListener("click",function(){
   out.textContent="Přihlašuji…";
   AUTH.signInWithEmailLink(email,link).then(function(){localStorage.removeItem("volby_email");}).catch(function(e){out.textContent="⚠️ "+(e&&e.message?e.message:e);});
 });
-document.getElementById("logout").addEventListener("click",function(){AUTH.signOut();});
+document.getElementById("logout").addEventListener("click",function(){stopPresence().then(function(){AUTH.signOut();});});
 
 /* ---------- SPRÁVA PŘÍSTUPŮ (jen správci z uzlu volby_spravci) ---------- */
 var _SPRAVCE=false;
 function keyToEmail(k){return String(k||"").replace(/,/g,".");}
 function checkSpravce(user){
   _SPRAVCE=false;document.getElementById("pristupyBtn").classList.add("hidden");
-  function ano(){if(_USER===user){_SPRAVCE=true;document.getElementById("pristupyBtn").classList.remove("hidden");}}
+  function ano(){if(_USER===user&&!_SPRAVCE){_SPRAVCE=true;document.getElementById("pristupyBtn").classList.remove("hidden");watchOnline();}}
   // správce = admin claim (jako ve Floriánu) nebo záznam v volby_spravci
   user.getIdTokenResult().then(function(t){if(t&&t.claims&&t.claims.admin===true)ano();}).catch(function(){});
   FDB.ref("volby_spravci/"+leKey(user.email)).get().then(function(s){if(s.exists())ano();}).catch(function(){});
@@ -452,14 +452,79 @@ function openPristupy(){
 }
 document.getElementById("pristupyBtn").addEventListener("click",openPristupy);
 
+/* ---------- KDO JE ONLINE (volby_presence/<email>/c/<spojeni>) ---------- */
+var _PRES={conn:null,c:null,user:null}, _ONLINE={};
+function startPresence(user){
+  if(_PRES.user===user)return; _PRES.user=user;
+  var ref=FDB.ref("volby_presence/"+leKey(user.email)), TS=firebase.database.ServerValue.TIMESTAMP;
+  _PRES.conn=FDB.ref(".info/connected");
+  _PRES.conn.on("value",function(s){
+    if(s.val()!==true||!_USER)return;
+    var c=ref.child("c").push(); _PRES.c=c;
+    c.onDisconnect().remove().then(function(){
+      ref.child("ts").onDisconnect().set(TS);
+      c.set({od:TS,mobil:/Mobi|Android|iPhone/i.test(navigator.userAgent)});
+      ref.update({email:user.email,ts:TS});
+    }).catch(function(){});
+  });
+}
+function stopPresence(){
+  if(_PRES.conn){_PRES.conn.off();_PRES.conn=null;}
+  var c=_PRES.c; _PRES.c=null; _PRES.user=null;
+  if(_ONLINE.ref){_ONLINE.ref.off();_ONLINE={};}
+  document.getElementById("onlineBtn").classList.add("hidden");
+  if(!c)return Promise.resolve();
+  return Promise.all([c.remove(),c.parent.parent.child("ts").set(firebase.database.ServerValue.TIMESTAMP)]).catch(function(){});
+}
+function watchOnline(){
+  if(_ONLINE.ref)return;
+  _ONLINE.ref=FDB.ref("volby_presence");
+  _ONLINE.ref.on("value",function(s){
+    _ONLINE.data=s.val()||{};
+    var n=Object.keys(_ONLINE.data).filter(function(k){return _ONLINE.data[k]&&_ONLINE.data[k].c;}).length;
+    document.getElementById("onlineN").textContent=n;
+    document.getElementById("onlineBtn").classList.remove("hidden");
+    var mb=document.getElementById("mbody");
+    if(document.getElementById("modal").classList.contains("show")&&mb.querySelector("#onlineList"))renderOnline();
+  },function(){document.getElementById("onlineBtn").classList.add("hidden");_ONLINE.ref=null;});
+}
+function predKdy(ts){
+  if(!ts)return "zatím nikdy";
+  var m=Math.round((Date.now()-ts)/60000);
+  if(m<1)return "před chvílí"; if(m<60)return "před "+m+" min";
+  var h=Math.round(m/60); if(h<24)return "před "+h+" h";
+  var d=new Date(ts); return d.getDate()+". "+(d.getMonth()+1)+". "+d.getFullYear()+" "+d.getHours()+":"+String(d.getMinutes()).padStart(2,"0");
+}
+function renderOnline(){
+  var v=_ONLINE.data||{}, ja=leKey(_USER&&_USER.email);
+  var on=[],off=[];
+  Object.keys(v).forEach(function(k){
+    var r=v[k]||{}, c=r.c?Object.keys(r.c).map(function(x){return r.c[x]||{};}):[];
+    var o={k:k,email:r.email||keyToEmail(k),ts:r.ts,c:c};
+    (c.length?on:off).push(o);
+  });
+  on.sort(function(a,b){return a.email.localeCompare(b.email,"cs");});
+  off.sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+  function radek(o,zap){
+    var info=zap?(o.c.some(function(x){return x.mobil;})?"📱 ":"💻 ")+(o.c.length>1?o.c.length+" zařízení / okna":"online"):"naposledy "+predKdy(o.ts);
+    return "<li style='display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #eee'><span>"+(zap?"🟢 ":"⚪ ")+esc(o.email)+(o.k===ja?" <i style='color:#889'>(ty)</i>":"")+"</span><span style='color:#667;font-size:.85rem;white-space:nowrap'>"+info+"</span></li>";
+  }
+  var h="<h2>🟢 Kdo je v aplikaci</h2><div id='onlineList'><div style='margin-top:8px'><b>Právě online ("+on.length+")</b></div><ul style='list-style:none;padding:0;margin:6px 0 14px'>"+
+    (on.length?on.map(function(o){return radek(o,true);}).join(""):"<li class='msg'>Nikdo.</li>")+"</ul>";
+  if(off.length)h+="<div><b>Dříve</b></div><ul style='list-style:none;padding:0;margin:6px 0 0'>"+off.map(function(o){return radek(o,false);}).join("")+"</ul>";
+  h+="<p class='msg'>Seznam se aktualizuje sám. Uvidíš jen lidi, kteří aplikaci otevřeli od verze v53.</p></div>";
+  document.getElementById("mbody").innerHTML=h;
+}
+document.getElementById("onlineBtn").addEventListener("click",function(){renderOnline();document.getElementById("modal").classList.add("show");});
+
 if(AUTH.isSignInWithEmailLink(window.location.href)){
   var em=localStorage.getItem("volby_email")||window.prompt("Potvrď svůj e-mail pro přihlášení:");
   if(em){AUTH.signInWithEmailLink(em,window.location.href).then(function(){localStorage.removeItem("volby_email");history.replaceState(null,"",location.pathname);}).catch(function(e){alert("Přihlášení selhalo: "+(e&&e.message?e.message:e));});}
 }
 AUTH.onAuthStateChanged(function(user){
-  if(!user){_USER=null;showLogin();return;}
+  if(!user){_USER=null;stopPresence();showLogin();return;}
   FDB.ref("florian_login_email/"+leKey(user.email)).get().then(function(s){
-    if(s.exists()){_USER=user;document.getElementById("who").textContent=user.email;showApp();loadData();loadSvazky();loadZam();checkSpravce(user);}
+    if(s.exists()){_USER=user;document.getElementById("who").textContent=user.email;showApp();loadData();loadSvazky();loadZam();checkSpravce(user);startPresence(user);}
     else{showLogin("E-mail <b>"+esc(user.email)+"</b> zatím nemá přístup. Ozvi se Petru Kobelkovi, ať tě přidá (stejný seznam jako Florián).");AUTH.signOut();}
   }).catch(function(){showLogin("Nepodařilo se ověřit přístup, zkus to znovu.");});
 });
@@ -3703,7 +3768,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v52";
+var VERZE="2026-11-10 · v53";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
