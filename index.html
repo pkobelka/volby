@@ -190,6 +190,10 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 #mapClose{position:fixed;top:12px;right:12px;z-index:1001;background:#2f6b3c;color:#fff;border:none;border-radius:8px;padding:9px 13px;font-size:.9rem;font-weight:600;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.35);}
 .mapfullbtn{background:#fff;border:none;border-radius:5px;width:36px;height:36px;font-size:1.2rem;line-height:1;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,.3);color:#2f6b3c;}
 .leaflet-container{font:inherit;}
+.obeclbl{background:none;border:none;}
+.obeclbl span{display:inline-block;transform:translate(-50%,-50%);white-space:nowrap;font-weight:700;font-size:12.5px;color:#14251a;text-shadow:0 0 2px #fff,0 0 3px #fff,0 0 4px #fff,0 0 6px #fff;pointer-events:none;}
+.lbl-s .obeclbl span{font-size:10.5px;}
+.lbl-off .obeclbl{display:none;}
 .obdobibar{background:linear-gradient(100deg,#2f6b3c,#3f7d4c);color:#fff;border-radius:12px;padding:12px 16px;margin:12px 0 4px;box-shadow:0 4px 14px rgba(47,107,60,.25);}
 .obdobibar .ob-hlava{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;opacity:.8;font-weight:700;}
 .obtabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
@@ -250,7 +254,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <div class="wrap hidden" id="app">
 <div class="top">
 <header><h1>🗳️ Volby 2026 – Obce okresu Svitavy</h1>
-<p>Vsechny obce okresu Svitavy. Modre = pracoviste VHOS. 2022–2026 = soucasne · 2026–2030 = po volbach.</p></header>
+<p>Vsechny obce okresu Svitavy (+ Velké Opatovice). Modre = pracoviste VHOS. 2022–2026 = soucasne · 2026–2030 = po volbach.</p></header>
 <div class="userbox"><span id="who"></span><span class="onlinewrap hidden" id="onlineWrap"><button class="btn ghost small" id="onlineBtn">🟢 <span id="onlineN">0</span> online</button><div class="onlinepop" id="onlinePop"></div></span><button class="btn ghost small hidden" id="pristupyBtn" title="Kdo má přístup do aplikace">👥 Přístupy</button><button class="btn ghost small" id="logout">Odhlásit</button></div>
 </div>
 <div class="obdobibar">
@@ -265,7 +269,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <div class="chips" id="provChips"></div>
 <div class="chips sub" id="pracChips"></div>
 </div>
-<div class="viewtabs"><button class="viewtab on" id="tabList">Seznam</button><button class="viewtab" id="tabMap">🗺️ Mapa regionu</button></div>
+<div class="viewtabs"><button class="viewtab on" id="tabList">Seznam</button><button class="viewtab" id="tabMap">🗺️ Mapa regionu</button><button class="viewtab" id="pzPrehledBtn">📝 Poznámky</button></div>
 <div class="pocet" id="pocet"></div>
 <div class="grid" id="grid"></div>
 <div id="svazkywrap" class="hidden">
@@ -299,7 +303,6 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <button class="btn ghost small admonly" id="vysledkyBtn">📊 Výsledky voleb</button>
 <button class="btn ghost small admonly" id="tiskBtn">🖨️ Tisk kandidátek</button>
 <button class="btn ghost small admonly" id="acBtn">💧 Porovnat s AquaControl</button>
-<button class="btn ghost small" id="pzPrehledBtn">📝 Poznámky</button>
 <input type="file" id="vxFile" accept=".xml,.zip,application/xml,text/xml" style="display:none" />
 <input type="file" id="acFile" accept=".xlsx,.xlsm,.xlsb,.xls,.csv,.txt,.tsv" style="display:none" />
 <input type="file" id="importFile" accept=".json,application/json" multiple style="display:none" />
@@ -419,7 +422,7 @@ var _SPRAVCE=false;
 function keyToEmail(k){return String(k||"").replace(/,/g,".");}
 function checkSpravce(user){
   _SPRAVCE=false;document.body.classList.remove("spravce");document.getElementById("pristupyBtn").classList.add("hidden");
-  function ano(){if(_USER===user&&!_SPRAVCE){_SPRAVCE=true;document.body.classList.add("spravce");document.getElementById("pristupyBtn").classList.remove("hidden");watchOnline();}}
+  function ano(){if(_USER===user&&!_SPRAVCE){_SPRAVCE=true;document.body.classList.add("spravce");seedExtraObce();document.getElementById("pristupyBtn").classList.remove("hidden");watchOnline();}}
   // správce = admin claim (jako ve Floriánu) nebo záznam v volby_spravci
   user.getIdTokenResult().then(function(t){if(t&&t.claims&&t.claims.admin===true)ano();}).catch(function(){});
   FDB.ref("volby_spravci/"+leKey(user.email)).get().then(function(s){if(s.exists())ano();}).catch(function(){});
@@ -709,7 +712,21 @@ function loadData(){
     });
     if(!OBCE.length){document.getElementById("stav").innerHTML="⚠️ Data zatím nejsou ve Firebase. Spusť GitHub akci <b>Seed Volby (volby_obce)</b>, pak se sem načtou.";}
     recomputeZam();initProv();initPrac();initKdo();render();
-    updateStav();
+    updateStav();seedExtraObce();
+  });
+}
+// Obce mimo okres Svitavy, které chceme mít v seznamu i v mapě (hranice jsou
+// v hranice.json). Když záznam ve volby_obce chybí, založí ho správce sám.
+var EXTRA_OBCE=[{kod:"582646",nazev:"Velké Opatovice",provozovano:false,pracoviste:"",okres:"Blansko"}];
+var _extraHotovo={};
+function seedExtraObce(){
+  if(!_SPRAVCE||!OBCE.length||!_USER)return;
+  EXTRA_OBCE.forEach(function(e){
+    if(_extraHotovo[e.kod]||OBCE.some(function(o){return String(o.kod)===e.kod;}))return;
+    _extraHotovo[e.kod]=1;
+    FDB.ref("volby_obce/"+e.kod).transaction(function(cur){
+      return cur?undefined:Object.assign({},e,{zalozil:_USER.email,zalozil_ts:Date.now()});
+    }).catch(function(){_extraHotovo[e.kod]=0;});
   });
 }
 function updateStav(){
@@ -2337,7 +2354,18 @@ function initMap(){
       layer.on("mouseover",function(){layer.setStyle({weight:2.5,fillOpacity:.72});});
       layer.on("mouseout",function(){if(layer===_focusedLayer){layer.setStyle(FOCUS_ST);layer.bringToFront();}else if(_mapLayer){_mapLayer.resetStyle(layer);}});
     }}).addTo(_map);
+    // vlastni popisky obci (OSM popisky pod barevnou vyplni nejsou skoro videt)
+    var lbl=L.layerGroup();
+    _mapLayer.eachLayer(function(ly){
+      var p=ly.feature&&ly.feature.properties;if(!p)return;
+      L.marker(ly.getBounds().getCenter(),{interactive:false,keyboard:false,
+        icon:L.divIcon({className:"obeclbl",html:"<span>"+esc(p.nazev)+"</span>",iconSize:null})}).addTo(lbl);
+    });
+    lbl.addTo(_map);
+    function lblZoom(){var z=_map.getZoom(),c=_map.getContainer();c.classList.toggle("lbl-off",z<11);c.classList.toggle("lbl-s",z===11);}
+    _map.on("zoomend",lblZoom);
     try{_map.fitBounds(_mapLayer.getBounds(),{padding:[12,12]});}catch(e){}
+    lblZoom();
     fetch("okres.json").then(function(r){return r.json();}).then(function(g){L.geoJSON(g,{interactive:false,style:{color:"#7a2f22",weight:4,fill:false}}).addTo(_map).bringToFront();}).catch(function(){});
     if(_pendingFocus){doFocus(_pendingFocus);_pendingFocus=null;}
   }).catch(function(e){document.getElementById("map").innerHTML="<p style='padding:12px'>Hranice obcí se nepodařilo načíst: "+esc(e.message||String(e))+"</p>";});
@@ -4014,7 +4042,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v60";
+var VERZE="2026-11-10 · v61";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
