@@ -73,6 +73,13 @@ header p{color:#666;margin-top:4px;font-size:.92rem;}
 .loginbox .btn{width:100%;margin-bottom:8px;}
 .small2{font-size:.78rem;color:#889;margin-top:8px;cursor:pointer;text-decoration:underline;}
 .hidden{display:none!important;}
+.onlinewrap{position:relative;display:inline-block;}
+.onlinepop{display:none;position:absolute;right:0;top:100%;margin-top:6px;z-index:60;background:#fff;border:1px solid #cfe3d3;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:8px 12px;min-width:220px;text-align:left;font-size:.85rem;color:#333;white-space:nowrap;}
+.onlinepop::before{content:"";position:absolute;left:0;right:0;top:-8px;height:8px;}
+.onlinewrap:hover .onlinepop,.onlinewrap:focus-within .onlinepop{display:block;}
+.onlinepop .op-h{font-size:.75rem;color:#667;margin-bottom:4px;}
+.onlinepop .op-r{padding:3px 0;}
+.onlinepop .op-p{font-size:.75rem;color:#889;margin-top:6px;border-top:1px solid #eee;padding-top:5px;}
 footer{text-align:center;margin-top:30px;font-size:.78rem;color:#aaa;}
 .hint{font-size:.74rem;color:#b3ab99;margin-top:8px;}
 mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
@@ -236,7 +243,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <div class="top">
 <header><h1>🗳️ Volby 2026 – Obce okresu Svitavy</h1>
 <p>Vsechny obce okresu Svitavy. Modre = pracoviste VHOS. 2022–2026 = soucasne · 2026–2030 = po volbach.</p></header>
-<div class="userbox"><span id="who"></span><button class="btn ghost small hidden" id="onlineBtn" title="Kdo je právě v aplikaci">🟢 <span id="onlineN">0</span> online</button><button class="btn ghost small hidden" id="pristupyBtn" title="Kdo má přístup do aplikace">👥 Přístupy</button><button class="btn ghost small" id="logout">Odhlásit</button></div>
+<div class="userbox"><span id="who"></span><span class="onlinewrap hidden" id="onlineWrap"><button class="btn ghost small" id="onlineBtn">🟢 <span id="onlineN">0</span> online</button><div class="onlinepop" id="onlinePop"></div></span><button class="btn ghost small hidden" id="pristupyBtn" title="Kdo má přístup do aplikace">👥 Přístupy</button><button class="btn ghost small" id="logout">Odhlásit</button></div>
 </div>
 <div class="obdobibar">
   <div class="ob-hlava">Se kterou složkou pracovat</div>
@@ -473,7 +480,7 @@ function stopPresence(){
   if(_PRES.conn){_PRES.conn.off();_PRES.conn=null;}
   var c=_PRES.c; _PRES.c=null; _PRES.user=null;
   if(_ONLINE.ref){_ONLINE.ref.off();_ONLINE={};}
-  document.getElementById("onlineBtn").classList.add("hidden");
+  document.getElementById("onlineWrap").classList.add("hidden");
   if(!c)return Promise.resolve();
   return Promise.all([c.remove(),c.parent.parent.child("ts").set(firebase.database.ServerValue.TIMESTAMP)]).catch(function(){});
 }
@@ -484,10 +491,21 @@ function watchOnline(){
     _ONLINE.data=s.val()||{};
     var n=Object.keys(_ONLINE.data).filter(function(k){return _ONLINE.data[k]&&_ONLINE.data[k].c;}).length;
     document.getElementById("onlineN").textContent=n;
-    document.getElementById("onlineBtn").classList.remove("hidden");
+    onlinePopRender();
+    document.getElementById("onlineWrap").classList.remove("hidden");
     var mb=document.getElementById("mbody");
     if(document.getElementById("modal").classList.contains("show")&&mb.querySelector("#onlineList"))renderOnline();
-  },function(){document.getElementById("onlineBtn").classList.add("hidden");_ONLINE.ref=null;});
+  },function(){document.getElementById("onlineWrap").classList.add("hidden");_ONLINE.ref=null;});
+}
+function onlinePopRender(){
+  var v=_ONLINE.data||{}, ja=leKey(_USER&&_USER.email), on=[];
+  Object.keys(v).forEach(function(k){var r=v[k]||{};if(!r.c)return;
+    var c=Object.keys(r.c).map(function(x){return r.c[x]||{};});
+    on.push({k:k,email:r.email||keyToEmail(k),mobil:c.some(function(x){return x.mobil;}),pc:c.some(function(x){return !x.mobil;})});});
+  on.sort(function(a,b){return (a.k===ja)-(b.k===ja)||a.email.localeCompare(b.email,"cs");});
+  document.getElementById("onlinePop").innerHTML="<div class='op-h'>Právě v aplikaci</div>"+
+    (on.length?on.map(function(o){return "<div class='op-r'>"+(o.mobil?"📱":"")+(o.pc?"💻":"")+" "+esc(o.email)+(o.k===ja?" <i style='color:#889'>(ty)</i>":"")+"</div>";}).join(""):"<div class='op-r'>nikdo</div>")+
+    "<div class='op-p'>Klikni pro historii návštěv</div>";
 }
 function predKdy(ts){
   if(!ts)return "zatím nikdy";
@@ -3911,7 +3929,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v54";
+var VERZE="2026-11-10 · v55";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
