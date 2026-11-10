@@ -1,6 +1,9 @@
 # Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
+- **Provozovatel vodovodu** (v63): u neprovozovaných obcí pole `provozovatel`
+  (úprava ✏️ s našeptávačem dosavadních hodnot), ukazuje se ve štítku, detailu a
+  v tooltipu mapy („Provozuje: …“).
 - **Starostové z Wikidat** (v62, jen správce): tlačítko 👤 Doplnit starosty – SPARQL z
   prohlížeče (P7606/P782 → P6 s daty od/do), náhled, zapíše jen zaškrtnuté do
   `starosta` (2022–26) a `starosta_2026`, k tomu `*_zdroj: Wikidata`. Odsud
