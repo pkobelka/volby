@@ -1,0 +1,24 @@
+# Nasazení aplikace na Firebase Hosting (projekt moje-budky, web volby-vhos)
+# při každém pushi do main. Potřebuje secret FIREBASE_SERVICE_ACCOUNT_MOJE_BUDKY
+# (JSON klíč servisního účtu s rolí Firebase Hosting Admin).
+name: Nasazení na Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MOJE_BUDKY }}
+          projectId: moje-budky
+          channelId: live
