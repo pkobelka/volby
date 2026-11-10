@@ -63,6 +63,7 @@ header p{color:#666;margin-top:4px;font-size:.92rem;}
 .zast li{margin:2px 0;}
 .zdroj{margin-top:12px;font-size:.74rem;color:#a99;}
 .mtools{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;}
+.editbar{position:sticky;top:-24px;z-index:3;background:#fff;display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 0 10px;box-shadow:0 -30px 0 #fff;margin:6px 0 4px;border-bottom:1px solid #eee;}
 .msg{font-size:.82rem;margin-top:8px;color:#557;}
 /* login overlay */
 .login{position:fixed;inset:0;background:linear-gradient(160deg,#e8efe6,#f4f1ea);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100;}
@@ -941,20 +942,21 @@ function vodovodText(o){return o.provozovano?"VHOS"+(o.pracoviste?" · "+o.praco
 function kanalVhos(o){return o.kanal==="vhos"||(!o.kanal&&!!o.provozovano);}
 function kanalText(o){
   if(o.kanal==="zadna")return "obec nemá kanalizaci";
-  if(o.kanal==="jiny")return o.provozovatel_kanal||"jiný provozovatel (neuveden)";
+  if(o.kanal==="jiny")return o.provozovatel_kanal||"neprovozuje VHOS";
   if(o.kanal==="vhos")return "VHOS";
   return o.provozovano?"VHOS":(o.provozovatel||"neuvedeno");
 }
 function kanalJinak(o){return !!o.kanal&&kanalVhos(o)!==!!o.provozovano||o.kanal==="zadna"||(o.kanal==="jiny"&&!o.provozovano&&o.provozovatel_kanal&&o.provozovatel_kanal!==o.provozovatel);}
 // Jednorázově: obce, kde VHOS provozuje jen vodovod (kanalizaci ne)
 var JEN_VODOVOD=["578657","572691"]; // Radiměř, Hradec nad Svitavou
-var _jvHotovo=false;
+var _jvHotovo2=false;
 function seedJenVodovod(){
-  if(_jvHotovo||!_SPRAVCE||!OBCE.length||!_USER)return;_jvHotovo=true;
+  if(_jvHotovo2||!_SPRAVCE||!OBCE.length||!_USER)return;_jvHotovo2=true;
   JEN_VODOVOD.forEach(function(k){
     var o=OBCE.filter(function(x){return String(x.kod)===k;})[0];
-    if(!o||o.kanal)return;
-    FDB.ref("volby_obce/"+k+"/kanal").transaction(function(cur){return cur?undefined:"jiny";}).catch(function(){});
+    if(!o||(o.kanal&&o.kanal!=="jiny")||(o.kanal==="jiny"&&o.provozovatel_kanal))return;
+    if(!o.kanal)FDB.ref("volby_obce/"+k+"/kanal").transaction(function(cur){return cur?undefined:"jiny";}).catch(function(){});
+    if(!o.provozovatel_kanal)FDB.ref("volby_obce/"+k+"/provozovatel_kanal").transaction(function(cur){return cur?undefined:"obec "+o.nazev;}).catch(function(){});
   });
 }
 function updateStav(){
@@ -2360,11 +2362,12 @@ function renderModal(){
     var provList={};provList["obec "+o.nazev]=1;OBCE.forEach(function(x){if(x.provozovatel)provList[x.provozovatel]=1;});
     OBCE.forEach(function(x){if(x.provozovatel_kanal)provList[x.provozovatel_kanal]=1;});
     var kopt=function(v,t){return "<option value='"+v+"'"+((o.kanal||"")===v?" selected":"")+">"+t+"</option>";};
-    body=head+"<div class='sekce'>Vodovod a kanalizace</div>"+
+    body=head+"<div class='editbar'><button class='btn' id='saveBtnTop'>💾 Uložit</button><button class='btn ghost' id='cancelBtnTop'>Zrušit</button><span class='hint' style='margin:0'>Enter = uložit</span><span class='msg' id='mmsgTop' style='margin:0'></span></div>"+
+      "<div class='sekce'>Vodovod a kanalizace</div>"+
       (o.provozovano?"<div class='r'><b>Vodovod</b><span>VHOS"+(o.pracoviste?" · "+esc(o.pracoviste):"")+"</span></div>":
         "<div class='r'><b>Provozovatel vodovodu</b><input id='e_provozovatel' list='provDL' value=\""+esc(o.provozovatel||"")+"\" placeholder='např. obec "+esc(o.nazev)+"' /></div>")+
-      "<div class='r'><b>Kanalizace</b><select id='e_kanal'>"+kopt("","stejně jako vodovod ("+esc(o.provozovano?"VHOS":(o.provozovatel||"neuvedeno"))+")")+kopt("vhos","VHOS")+kopt("jiny","jiný provozovatel")+kopt("zadna","obec nemá kanalizaci")+"</select></div>"+
-      "<div class='r' id='e_pk_row'"+(o.kanal==="jiny"?"":" style='display:none'")+"><b>Provozovatel kanalizace</b><input id='e_provozovatel_kanal' list='provDL' value=\""+esc(o.provozovatel_kanal||"")+"\" placeholder='např. obec "+esc(o.nazev)+"' /></div>"+
+      "<div class='r'><b>Kanalizace</b><select id='e_kanal'>"+kopt("","stejně jako vodovod – "+esc(o.provozovano?"provozuje VHOS":(o.provozovatel||"neuvedeno")))+kopt("vhos","provozuje VHOS")+kopt("jiny","neprovozuje VHOS (jiný provozovatel)")+kopt("zadna","obec nemá kanalizaci")+"</select></div>"+
+      "<div class='r' id='e_pk_row'"+(o.kanal==="jiny"?"":" style='display:none'")+"><b>Provozovatel kanalizace <span style='font-weight:400;color:#999'>(nepovinné)</span></b><input id='e_provozovatel_kanal' list='provDL' value=\""+esc(o.provozovatel_kanal||"")+"\" placeholder='např. obec "+esc(o.nazev)+"' /></div>"+
       "<datalist id='provDL'>"+Object.keys(provList).sort(function(a,b){return a.localeCompare(b,"cs");}).map(function(v){return "<option value=\""+esc(v)+"\">";}).join("")+"</datalist>"+
       "<div class='sekce'>Vedení obce 2026–2030 <span class='obd'>· po ustavujícím zastupitelstvu</span></div>"+
       editRow("Starosta 2026–2030","e_starosta_2026",o.starosta_2026)+editRow("Starosta 2026 – telefon","e_starosta_2026_tel",o.starosta_2026_tel)+editRow("Starosta 2026 – e-mail","e_starosta_2026_email",o.starosta_2026_email)+
@@ -2456,6 +2459,12 @@ function renderModal(){
     var ek=document.getElementById("e_kanal");
     if(ek)ek.addEventListener("change",function(){document.getElementById("e_pk_row").style.display=ek.value==="jiny"?"":"none";if(ek.value==="jiny")document.getElementById("e_provozovatel_kanal").focus();});
     document.getElementById("saveBtn").addEventListener("click",saveEdit);
+    document.getElementById("saveBtnTop").addEventListener("click",saveEdit);
+    document.getElementById("cancelBtnTop").addEventListener("click",function(){_EDIT=false;renderModal();});
+    // Enter v jednoradkovem poli = ulozit (v textarea dal novy radek)
+    Array.prototype.forEach.call(document.querySelectorAll("#mbody input"),function(inp){
+      inp.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();setTimeout(saveEdit,0);}});
+    });
     document.getElementById("cancelBtn").addEventListener("click",function(){_EDIT=false;renderModal();});
   }else{
     document.getElementById("editBtn").addEventListener("click",function(){_EDIT=true;renderModal();});
@@ -2483,10 +2492,11 @@ function saveEdit(){
     upravil:_USER.email,upravil_ts:Date.now()};
   if(document.getElementById("e_provozovatel"))upd.provozovatel=g("e_provozovatel");
   if(document.getElementById("e_kanal")){upd.kanal=document.getElementById("e_kanal").value;upd.provozovatel_kanal=upd.kanal==="jiny"?g("e_provozovatel_kanal"):"";}
-  document.getElementById("mmsg").textContent="Ukládám…";
+  var hl2=function(t){document.getElementById("mmsg").textContent=t;var mt=document.getElementById("mmsgTop");if(mt)mt.textContent=t;};
+  hl2("Ukládám…");
   FDB.ref("volby_obce/"+o.kod).update(upd).then(function(){
     Object.assign(o,upd);_EDIT=false;renderModal();
-  }).catch(function(e){document.getElementById("mmsg").textContent="⚠️ "+(e&&e.message?e.message:e);});
+  }).catch(function(e){hl2("⚠️ "+(e&&e.message?e.message:e));});
 }
 /* ---- editory jednotlivých sekcí (poznámky / návštěvy) ---- */
 function secPencil(sec){return "<span class='secedit' data-sec='"+sec+"' title='Upravit'>✏️</span>";}
@@ -4292,7 +4302,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v66";
+var VERZE="2026-11-10 · v67";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
