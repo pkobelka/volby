@@ -73,6 +73,7 @@ header p{color:#666;margin-top:4px;font-size:.92rem;}
 .loginbox .btn{width:100%;margin-bottom:8px;}
 .small2{font-size:.78rem;color:#889;margin-top:8px;cursor:pointer;text-decoration:underline;}
 .hidden{display:none!important;}
+body:not(.spravce) .admonly{display:none!important;}
 .obecmapa{margin-top:8px;}
 .mapsearch{position:relative;margin-top:8px;}
 .mapsug{position:absolute;left:0;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #d8d2c2;border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.16);z-index:1050;max-height:60vh;overflow:auto;}
@@ -291,20 +292,20 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <span style="color:#8a9382">· dvojklik/dvojťuk = mapa na celou obrazovku</span>
 </div></div>
 <div style="text-align:center;margin-top:16px">
-<button class="btn ghost small" id="importIM">⬆️ Importovat kontakty ze souboru</button>
-<button class="btn ghost small" id="kontrolaVHOS">🔎 Kontrola VHOS</button>
-<button class="btn ghost small" id="kandidatky">🗳️ Kandidátky 2026</button>
-<button class="btn ghost small" id="kandidatky22">🗳️ Kandidátky 2022</button>
-<button class="btn ghost small" id="vysledkyBtn">📊 Výsledky voleb</button>
-<button class="btn ghost small" id="tiskBtn">🖨️ Tisk kandidátek</button>
-<button class="btn ghost small" id="acBtn">💧 Porovnat s AquaControl</button>
+<button class="btn ghost small admonly" id="importIM">⬆️ Importovat kontakty ze souboru</button>
+<button class="btn ghost small admonly" id="kontrolaVHOS">🔎 Kontrola VHOS</button>
+<button class="btn ghost small admonly" id="kandidatky">🗳️ Kandidátky 2026</button>
+<button class="btn ghost small admonly" id="kandidatky22">🗳️ Kandidátky 2022</button>
+<button class="btn ghost small admonly" id="vysledkyBtn">📊 Výsledky voleb</button>
+<button class="btn ghost small admonly" id="tiskBtn">🖨️ Tisk kandidátek</button>
+<button class="btn ghost small admonly" id="acBtn">💧 Porovnat s AquaControl</button>
 <button class="btn ghost small" id="pzPrehledBtn">📝 Poznámky</button>
 <input type="file" id="vxFile" accept=".xml,.zip,application/xml,text/xml" style="display:none" />
 <input type="file" id="acFile" accept=".xlsx,.xlsm,.xlsb,.xls,.csv,.txt,.tsv" style="display:none" />
 <input type="file" id="importFile" accept=".json,application/json" multiple style="display:none" />
 <input type="file" id="kandFile" accept=".zip,.csv,.txt,.tsv,.xml,.json,.html,.htm,.xlsx,.xls" multiple style="display:none" />
 <div class="msg" id="importMsg" style="text-align:center"></div>
-<div class="hint" style="text-align:center">Vyber datové soubory (kontakty.json / svazky.json). Doplní jen prázdná pole; ručně upravené hodnoty zůstanou beze změny. Data nejsou veřejná – jen ve Firebase za přihlášením.</div>
+<div class="hint admonly" style="text-align:center">Vyber datové soubory (kontakty.json / svazky.json). Doplní jen prázdná pole; ručně upravené hodnoty zůstanou beze změny. Data nejsou veřejná – jen ve Firebase za přihlášením.</div>
 </div>
 <footer>Data: volby.cz KV2022 + KV2026 + weby obcí · úpravy ve Firebase (moje-budky) · <b id="verze"></b> · © 2026 <a href="https://www.petrkobelka.cz" target="_blank" rel="noopener" title="www.petrkobelka.cz" style="color:inherit;text-decoration:underline">Petr Kobelka</a></footer>
 </div>
@@ -417,8 +418,8 @@ document.getElementById("logout").addEventListener("click",function(){stopPresen
 var _SPRAVCE=false;
 function keyToEmail(k){return String(k||"").replace(/,/g,".");}
 function checkSpravce(user){
-  _SPRAVCE=false;document.getElementById("pristupyBtn").classList.add("hidden");
-  function ano(){if(_USER===user&&!_SPRAVCE){_SPRAVCE=true;document.getElementById("pristupyBtn").classList.remove("hidden");watchOnline();}}
+  _SPRAVCE=false;document.body.classList.remove("spravce");document.getElementById("pristupyBtn").classList.add("hidden");
+  function ano(){if(_USER===user&&!_SPRAVCE){_SPRAVCE=true;document.body.classList.add("spravce");document.getElementById("pristupyBtn").classList.remove("hidden");watchOnline();}}
   // správce = admin claim (jako ve Floriánu) nebo záznam v volby_spravci
   user.getIdTokenResult().then(function(t){if(t&&t.claims&&t.claims.admin===true)ano();}).catch(function(){});
   FDB.ref("volby_spravci/"+leKey(user.email)).get().then(function(s){if(s.exists())ano();}).catch(function(){});
@@ -687,7 +688,7 @@ if(AUTH.isSignInWithEmailLink(window.location.href)){
   if(em){AUTH.signInWithEmailLink(em,window.location.href).then(function(){localStorage.removeItem("volby_email");history.replaceState(null,"",location.pathname);}).catch(function(e){alert("Přihlášení selhalo: "+(e&&e.message?e.message:e));});}
 }
 AUTH.onAuthStateChanged(function(user){
-  if(!user){_USER=null;stopPresence();stopPoznamky();showLogin();return;}
+  if(!user){_USER=null;_SPRAVCE=false;document.body.classList.remove("spravce");stopPresence();stopPoznamky();showLogin();return;}
   FDB.ref("florian_login_email/"+leKey(user.email)).get().then(function(s){
     if(s.exists()){_USER=user;document.getElementById("who").textContent=user.email;showApp();loadData();loadSvazky();loadZam();checkSpravce(user);startPresence(user);startPoznamky(user);}
     else{showLogin("E-mail <b>"+esc(user.email)+"</b> zatím nemá přístup. Ozvi se Petru Kobelkovi, ať tě přidá (stejný seznam jako Florián).");AUTH.signOut();}
@@ -4013,7 +4014,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v59";
+var VERZE="2026-11-10 · v60";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
