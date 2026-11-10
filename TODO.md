@@ -1,6 +1,10 @@
 # Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
+- **Vodovod × kanalizace** (v66): pole `kanal` ("" = stejně jako vodovod, `vhos`,
+  `jiny`, `zadna`) + `provozovatel_kanal`. Detail (💧 Vodovod / 🚰 Kanalizace),
+  štítky „jen vodovod“ / „kanalizace VHOS“, tooltip, přehled cen. Radiměř a Hradec
+  nad Svitavou nastaveny na jen vodovod (`JEN_VODOVOD`). Čeká se na tabulku cen.
 - **Ceny vody** (v65): `volby_ceny/<kod>/<rok> = {vodne, stocne}` Kč/m³ s DPH.
   Zadává správce v detailu obce (sekce 💧 Ceny vody), vidí všichni: tooltip v mapě
   (poslední rok), přehled 💧 Ceny vody nahoře (rok, řazení, průměr).
