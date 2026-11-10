@@ -45,7 +45,7 @@ header p{color:#666;margin-top:4px;font-size:.92rem;}
 .b.np{background:#efece4;color:#8a8272;}
 .b.over{background:#fdf3d6;color:#8a6d1f;}
 .b.ok{background:#e2f0e0;color:#2f6b3c;}
-.modal{position:fixed;inset:0;background:rgba(20,25,20,.55);display:none;align-items:flex-start;justify-content:center;padding:24px 14px;z-index:50;overflow:auto;}
+.modal{position:fixed;inset:0;background:rgba(20,25,20,.55);display:none;align-items:flex-start;justify-content:center;padding:24px 14px;z-index:1100;overflow:auto;}
 .modal.show{display:flex;}
 .modalbox{background:#fff;border-radius:16px;max-width:640px;width:100%;margin:auto;padding:22px 22px 26px;box-shadow:0 20px 60px rgba(0,0,0,.3);position:relative;}
 .modalbox h2{color:var(--zelena-tmava);font-size:1.4rem;padding-right:34px;}
@@ -174,7 +174,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 .viewtabs{display:flex;gap:6px;margin:10px 0 2px;}
 .viewtab{border:1px solid var(--sedaramecek);background:#fff;border-radius:8px;padding:7px 14px;font-size:.86rem;cursor:pointer;color:#444;font-weight:600;}
 .viewtab.on{background:var(--zelena);color:#fff;border-color:var(--zelena);}
-#map{height:70vh;min-height:420px;border-radius:12px;border:1px solid #e0dccf;margin-top:8px;}
+#map{position:relative;z-index:0;height:70vh;min-height:420px;border-radius:12px;border:1px solid #e0dccf;margin-top:8px;}
 .maplegend{font-size:.78rem;color:#777;margin-top:6px;display:flex;flex-wrap:wrap;gap:10px;}
 .maplegend span{display:inline-flex;align-items:center;gap:5px;}
 .maplegend i{width:12px;height:12px;border-radius:3px;display:inline-block;border:1px solid rgba(0,0,0,.15);}
@@ -3929,7 +3929,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v55";
+var VERZE="2026-11-10 · v56";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
