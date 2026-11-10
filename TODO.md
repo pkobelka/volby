@@ -1,6 +1,13 @@
 # Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
+- **Firebase Hosting** (v73): `firebase.json` (web `volby-vhos` v projektu moje-budky),
+  `.firebaserc`, akce `.github/workflows/firebase-hosting.yml` nasazuje při pushi do
+  main. Potřebuje secret `FIREBASE_SERVICE_ACCOUNT_MOJE_BUDKY`, web `volby-vhos` ve
+  Firebase Hosting a doménu `volby-vhos.web.app` v Authentication → Authorized domains.
+  Po ověření: repo přepnout na soukromé (GitHub Pages pak skončí).
+- **Ceny 2025** (v73): tooltip ukazuje poslední 2 roky, přehled sloupec předchozího roku
+  s % změnou; složka Volby v detailu je vždy zabalená (otevře se jen při hledání).
 - **Ceny – import z Excelu** (v70): v přehledu 💧 Ceny vody tlačítko ⬆️ Nahrát ceny
   z Excelu (jen správce). Tabulka VHOS (kód VF…/VO…, lokalita, druh, roky bez DPH a
   s DPH) – bere blok s DPH, vybraný rok; druh vf=vodné, vo=stočné, voda před.=
