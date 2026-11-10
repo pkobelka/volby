@@ -1,6 +1,10 @@
 # Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
+- **Objem fakturace** (v79): ve `volby_ceny/<kod>/<rok>` pole `m_vf_dom`, `m_vf_ost`,
+  `m_vo_dom`, `m_vo_ost`, `m_predana`, `m_cisteni` (m³/rok, jen vlastní, ze svazku se
+  nepřebírá). Tooltip (poslední rok s objemem), detail obce (tabulka + formulář),
+  přehled cen (m³ vodné / stočné). **Čeká na tabulku objemů → doplnit import.**
 - **Ceny svazků** (v77): `volby_ceny/sv_<id svazku>/<rok>`; obec ve svazku přebírá
   každou cenu svazku, kterou sama nemá (`cenaRok`). Zadání v detailu svazku (💧 Ceny
   vody svazku) nebo importem z Excelu – řádek jde přiřadit ke svazku. V mapě poznámka
