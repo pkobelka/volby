@@ -236,7 +236,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <div class="top">
 <header><h1>🗳️ Volby 2026 – Obce okresu Svitavy</h1>
 <p>Vsechny obce okresu Svitavy. Modre = pracoviste VHOS. 2022–2026 = soucasne · 2026–2030 = po volbach.</p></header>
-<div class="userbox"><span id="who"></span><button class="btn ghost small" id="logout">Odhlásit</button></div>
+<div class="userbox"><span id="who"></span><button class="btn ghost small hidden" id="pristupyBtn" title="Kdo má přístup do aplikace">👥 Přístupy</button><button class="btn ghost small" id="logout">Odhlásit</button></div>
 </div>
 <div class="obdobibar">
   <div class="ob-hlava">Se kterou složkou pracovat</div>
@@ -396,6 +396,61 @@ document.getElementById("pasteBtn").addEventListener("click",function(){
 });
 document.getElementById("logout").addEventListener("click",function(){AUTH.signOut();});
 
+/* ---------- SPRÁVA PŘÍSTUPŮ (jen správci z uzlu volby_spravci) ---------- */
+var _SPRAVCE=false;
+function keyToEmail(k){return String(k||"").replace(/,/g,".");}
+function checkSpravce(user){
+  _SPRAVCE=false;document.getElementById("pristupyBtn").classList.add("hidden");
+  FDB.ref("volby_spravci/"+leKey(user.email)).get().then(function(s){
+    if(s.exists()&&_USER===user){_SPRAVCE=true;document.getElementById("pristupyBtn").classList.remove("hidden");}
+  }).catch(function(){});
+}
+function chybaPristupu(e){
+  var m=e&&e.message?e.message:String(e);
+  if(/permission/i.test(m))m="Firebase to nepovolil (permission denied). Zkontroluj pravidla pro florian_login_email a volby_spravci.";
+  return "⚠️ "+esc(m);
+}
+function openPristupy(){
+  if(!_SPRAVCE)return;
+  var mb=document.getElementById("mbody");
+  mb.innerHTML="<h2>👥 Přístupy do aplikace</h2><p class='msg'>Načítám…</p>";
+  document.getElementById("modal").classList.add("show");
+  FDB.ref("florian_login_email").get().then(function(s){
+    var v=s.val()||{}, keys=Object.keys(v).sort(function(a,b){return keyToEmail(a).localeCompare(keyToEmail(b),"cs");});
+    var ja=leKey(_USER&&_USER.email);
+    var h="<h2>👥 Přístupy do aplikace</h2>"+
+      "<p class='msg'>Seznam je společný s aplikací Florián: kdo je tady, dostane se i do Floriánu.</p>"+
+      "<div style='display:flex;gap:8px;flex-wrap:wrap;margin:12px 0'>"+
+      "<input id='prNovy' type='email' placeholder='e-mail kolegy' style='flex:1;min-width:200px;padding:8px 10px;border:1px solid #ccd;border-radius:8px' />"+
+      "<button class='btn' id='prPridat'>Přidat</button></div><div class='msg' id='prMsg'></div>"+
+      "<div style='margin-top:12px'><b>Mají přístup ("+keys.length+")</b></div><ul style='list-style:none;padding:0;margin:8px 0 0'>";
+    keys.forEach(function(k){
+      h+="<li style='display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee'><span>"+esc(keyToEmail(k))+(k===ja?" <i style='color:#889'>(ty)</i>":"")+"</span>"+
+        (k===ja?"":"<button class='btn ghost small prOdebrat' data-k='"+esc(k)+"'>Odebrat</button>")+"</li>";
+    });
+    h+="</ul>";
+    mb.innerHTML=h;
+    var inp=document.getElementById("prNovy");
+    function pridat(){
+      var em=(inp.value||"").trim().toLowerCase(), out=document.getElementById("prMsg");
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){out.textContent="Zadej platný e-mail.";return;}
+      if(v[leKey(em)]){out.textContent="Tenhle e-mail už přístup má.";return;}
+      out.textContent="Ukládám…";
+      FDB.ref("florian_login_email/"+leKey(em)).set(true).then(openPristupy).catch(function(e){out.innerHTML=chybaPristupu(e);});
+    }
+    document.getElementById("prPridat").addEventListener("click",pridat);
+    inp.addEventListener("keydown",function(e){if(e.key==="Enter")pridat();});
+    Array.prototype.forEach.call(mb.querySelectorAll(".prOdebrat"),function(b){
+      b.addEventListener("click",function(){
+        var k=b.getAttribute("data-k");
+        if(!confirm("Odebrat přístup pro "+keyToEmail(k)+"?\n(Přijde i o přístup do Floriánu.)"))return;
+        FDB.ref("florian_login_email/"+k).remove().then(openPristupy).catch(function(e){document.getElementById("prMsg").innerHTML=chybaPristupu(e);});
+      });
+    });
+  }).catch(function(e){mb.innerHTML="<h2>👥 Přístupy do aplikace</h2><p class='msg'>"+chybaPristupu(e)+"</p>";});
+}
+document.getElementById("pristupyBtn").addEventListener("click",openPristupy);
+
 if(AUTH.isSignInWithEmailLink(window.location.href)){
   var em=localStorage.getItem("volby_email")||window.prompt("Potvrď svůj e-mail pro přihlášení:");
   if(em){AUTH.signInWithEmailLink(em,window.location.href).then(function(){localStorage.removeItem("volby_email");history.replaceState(null,"",location.pathname);}).catch(function(e){alert("Přihlášení selhalo: "+(e&&e.message?e.message:e));});}
@@ -403,7 +458,7 @@ if(AUTH.isSignInWithEmailLink(window.location.href)){
 AUTH.onAuthStateChanged(function(user){
   if(!user){_USER=null;showLogin();return;}
   FDB.ref("florian_login_email/"+leKey(user.email)).get().then(function(s){
-    if(s.exists()){_USER=user;document.getElementById("who").textContent=user.email;showApp();loadData();loadSvazky();loadZam();}
+    if(s.exists()){_USER=user;document.getElementById("who").textContent=user.email;showApp();loadData();loadSvazky();loadZam();checkSpravce(user);}
     else{showLogin("E-mail <b>"+esc(user.email)+"</b> zatím nemá přístup. Ozvi se Petru Kobelkovi, ať tě přidá (stejný seznam jako Florián).");AUTH.signOut();}
   }).catch(function(){showLogin("Nepodařilo se ověřit přístup, zkus to znovu.");});
 });
@@ -3647,7 +3702,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-02 · v50 (v patičce odkaz Petr Kobelka → www.petrkobelka.cz)";
+var VERZE="2026-11-10 · v51";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
