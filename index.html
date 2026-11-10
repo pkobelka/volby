@@ -423,7 +423,7 @@ var _SPRAVCE=false;
 function keyToEmail(k){return String(k||"").replace(/,/g,".");}
 function checkSpravce(user){
   _SPRAVCE=false;document.body.classList.remove("spravce");document.getElementById("pristupyBtn").classList.add("hidden");
-  function ano(){if(_USER===user&&!_SPRAVCE){_SPRAVCE=true;document.body.classList.add("spravce");seedExtraObce();document.getElementById("pristupyBtn").classList.remove("hidden");watchOnline();}}
+  function ano(){if(_USER===user&&!_SPRAVCE){_SPRAVCE=true;document.body.classList.add("spravce");seedExtraObce();seedProvozovatel();document.getElementById("pristupyBtn").classList.remove("hidden");watchOnline();}}
   // správce = admin claim (jako ve Floriánu) nebo záznam v volby_spravci
   user.getIdTokenResult().then(function(t){if(t&&t.claims&&t.claims.admin===true)ano();}).catch(function(){});
   FDB.ref("volby_spravci/"+leKey(user.email)).get().then(function(s){if(s.exists())ano();}).catch(function(){});
@@ -791,7 +791,7 @@ function loadData(){
     });
     if(!OBCE.length){document.getElementById("stav").innerHTML="⚠️ Data zatím nejsou ve Firebase. Spusť GitHub akci <b>Seed Volby (volby_obce)</b>, pak se sem načtou.";}
     recomputeZam();initProv();initPrac();initKdo();render();
-    updateStav();seedExtraObce();
+    updateStav();seedExtraObce();seedProvozovatel();
   });
 }
 // Obce mimo okres Svitavy, které chceme mít v seznamu i v mapě (hranice jsou
@@ -806,6 +806,21 @@ function seedExtraObce(){
     FDB.ref("volby_obce/"+e.kod).transaction(function(cur){
       return cur?undefined:Object.assign({},e,{zalozil:_USER.email,zalozil_ts:Date.now()});
     }).catch(function(){_extraHotovo[e.kod]=0;});
+  });
+}
+// Jednorázové doplnění provozovatele vodovodu (jen kde je prázdný). Text se
+// vezme z obce Svitavy, pokud tam správce už Vodárenskou zadal, ať je stejný.
+var PROVOZ_DOPLNIT={vzor:"577731",vychozi:"Vodárenská Svitavy",kody:["577731","572713","572748","578215","578231","578932"]};
+var _provHotovo=false;
+function seedProvozovatel(){
+  if(_provHotovo||!_SPRAVCE||!OBCE.length||!_USER)return;
+  _provHotovo=true;
+  var vz=OBCE.filter(function(o){return String(o.kod)===PROVOZ_DOPLNIT.vzor;})[0];
+  var text=(vz&&vz.provozovatel&&/vod/i.test(vz.provozovatel))?vz.provozovatel:PROVOZ_DOPLNIT.vychozi;
+  PROVOZ_DOPLNIT.kody.forEach(function(k){
+    var o=OBCE.filter(function(x){return String(x.kod)===k;})[0];
+    if(!o||o.provozovano||o.provozovatel)return;   // jen existující neprovozované obce s prázdným polem
+    FDB.ref("volby_obce/"+k+"/provozovatel").transaction(function(cur){return cur?undefined:text;}).catch(function(){});
   });
 }
 function updateStav(){
@@ -4128,7 +4143,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v63";
+var VERZE="2026-11-10 · v64";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
