@@ -1203,7 +1203,7 @@ function zustavaHromadne(){
   function bunka(o,f,i){
     if(!o[f]||o[f+"_2026"])return "<td style='padding:4px;color:#aaa'>"+(o[f+"_2026"]?"✔ "+esc(o[f+"_2026"]):"—")+"</td>";
     var z=zvolen2026(o,o[f]);
-    return "<td style='padding:4px'><label><input type='checkbox' class='zhChk' data-i='"+i+"' data-f='"+f+"'"+(z===true?" checked":"")+"> "+esc(o[f])+"</label>"+
+    return "<td style='padding:4px'><label><input type='checkbox' class='zhChk' data-i='"+i+"' data-f='"+f+"'> "+esc(o[f])+"</label>"+
       "<div style='font-size:.75rem;color:"+(z===true?"#2f6b3c":z===false?"#b5453a":"#999")+"'>"+(z===true?"✔ zvolen do zastupitelstva 2026":z===false?"není mezi zvolenými 2026":"výsledky 2026 nejsou")+"</div></td>";
   }
   var prevz=OBCE.filter(function(o){return (o.starosta_2026&&o.starosta&&fold(o.starosta_2026)===fold(o.starosta))||(o.mistostarosta_2026&&o.mistostarosta&&fold(o.mistostarosta_2026)===fold(o.mistostarosta));})
@@ -1215,7 +1215,7 @@ function zustavaHromadne(){
     prevz.map(function(o,i){return "<tr style='border-bottom:1px solid #eee'><td style='padding:4px'><b>"+esc(o.nazev)+"</b></td>"+bunkaZ(o,"starosta",i)+bunkaZ(o,"mistostarosta",i)+"</tr>";}).join("")+
     "</table></div><div class='mtools'><button class='btn ghost' id='zrUloz'>↩️ Vrátit zaškrtnuté</button></div><div class='msg' id='zrMsg'></div>":"";
   mb.innerHTML="<h2>↪ Vedení obce zůstává</h2>"+
-    "<p class='msg'>Převezme jméno, telefon a e-mail z období 2022–2026 do 2026–2030 (jen prázdná pole). Předem zaškrtnutí jsou ti, kdo byli v roce 2026 znovu zvoleni do zastupitelstva – zvolení starostou to ale nezaručuje, projdi si to.</p>"+
+    "<p class='msg'>Převezme jméno, telefon a e-mail z období 2022–2026 do 2026–2030 (jen prázdná pole). Nic není předem zaškrtnuté – zaškrtni, kdo ve funkci pokračuje. U každého je vidět, jestli byl v roce 2026 znovu zvolen do zastupitelstva.</p>"+
     (rows.length?"<div style='margin:6px 0'><button class='btn ghost small' id='zhVse'>Zaškrtnout vše</button> <button class='btn ghost small' id='zhNic'>Odškrtnout vše</button></div>"+
     "<div style='overflow:auto'><table style='width:100%;border-collapse:collapse;font-size:.85rem'><tr style='text-align:left;border-bottom:2px solid #ddd'><th style='padding:4px'>Obec</th><th style='padding:4px'>Starosta</th><th style='padding:4px'>Místostarosta</th></tr>"+
     rows.map(function(o,i){return "<tr style='border-bottom:1px solid #eee;vertical-align:top'><td style='padding:4px'><b>"+esc(o.nazev)+"</b></td>"+bunka(o,"starosta",i)+bunka(o,"mistostarosta",i)+"</tr>";}).join("")+
@@ -4615,7 +4615,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v77";
+var VERZE="2026-11-10 · v78";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
