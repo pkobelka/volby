@@ -2306,7 +2306,12 @@ function initMap(){
     _mapLayer=L.geoJSON(gj,{style:obecStyle,onEachFeature:function(f,layer){
       var p=f.properties;
       _layerByKod[p.kod]=layer;
-      layer.bindTooltip(esc(p.nazev)+(p.provozovano?" · "+esc(p.pracoviste):" · neprovozováno"),{sticky:true});
+      // funkce = text se sklada pri kazdem najeti, takze ukaze i cerstve upraveneho starostu
+      layer.bindTooltip(function(){
+        var o=OBCE.filter(function(x){return x.kod===p.kod;})[0];
+        return "<b>"+esc(p.nazev)+"</b>"+(p.provozovano?" · "+esc(p.pracoviste):" · neprovozováno")+
+          "<br>Starosta: "+(o&&o.starosta?esc(o.starosta):"<i>neuveden</i>");
+      },{sticky:true});
       layer.on("click",function(){var o=OBCE.filter(function(x){return x.kod===p.kod;})[0]; if(o) openModal(o);});
       layer.on("mouseover",function(){layer.setStyle({weight:2.5,fillOpacity:.72});});
       layer.on("mouseout",function(){if(layer===_focusedLayer){layer.setStyle(FOCUS_ST);layer.bringToFront();}else if(_mapLayer){_mapLayer.resetStyle(layer);}});
@@ -3929,7 +3934,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v56";
+var VERZE="2026-11-10 · v57";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
