@@ -423,7 +423,7 @@ var _SPRAVCE=false;
 function keyToEmail(k){return String(k||"").replace(/,/g,".");}
 function checkSpravce(user){
   _SPRAVCE=false;document.body.classList.remove("spravce");document.getElementById("pristupyBtn").classList.add("hidden");
-  function ano(){if(_USER===user&&!_SPRAVCE){_SPRAVCE=true;document.body.classList.add("spravce");seedExtraObce();seedProvozovatel();document.getElementById("pristupyBtn").classList.remove("hidden");watchOnline();}}
+  function ano(){if(_USER===user&&!_SPRAVCE){_SPRAVCE=true;document.body.classList.add("spravce");seedExtraObce();seedProvozovatel();seedJenVodovod();document.getElementById("pristupyBtn").classList.remove("hidden");watchOnline();}}
   // správce = admin claim (jako ve Floriánu) nebo záznam v volby_spravci
   user.getIdTokenResult().then(function(t){if(t&&t.claims&&t.claims.admin===true)ano();}).catch(function(){});
   FDB.ref("volby_spravci/"+leKey(user.email)).get().then(function(s){if(s.exists())ano();}).catch(function(){});
@@ -788,7 +788,7 @@ function cenyPrehledRender(){
     th("nazev","Obec")+"<th style='padding:5px'>Provoz</th>"+(_CPF.rok==="posledni"?"<th style='padding:5px'>Rok</th>":"")+th("vodne","Vodné")+th("stocne","Stočné")+th("celkem","Celkem")+"</tr>"+
     rows.map(function(r){var o=r.o,c=r.c;
       return "<tr style='border-bottom:1px solid #eee'><td style='padding:5px'><a href='#' class='cpObec' data-kod='"+esc(String(o.kod))+"'>"+esc(o.nazev)+"</a></td>"+
-        "<td style='padding:5px;color:#667;font-size:.8rem'>"+esc(o.provozovano?("VHOS · "+(o.pracoviste||"")):(o.provozovatel||"neprovozováno"))+"</td>"+
+        "<td style='padding:5px;color:#667;font-size:.8rem'>"+(kanalJinak(o)?"vodovod: "+esc(vodovodText(o))+"<br>kanalizace: "+esc(kanalText(o)):esc(o.provozovano?vodovodText(o):(o.provozovatel||"neprovozováno")))+"</td>"+
         (_CPF.rok==="posledni"?"<td style='padding:5px'>"+(c?c.rok:"")+"</td>":"")+
         "<td style='padding:5px'>"+(c?kc(c.vodne):"—")+"</td><td style='padding:5px'>"+(c?kc(c.stocne):"—")+"</td><td style='padding:5px'><b>"+(c?kc(r.celkem):"—")+"</b></td></tr>";}).join("")+
     "</table>"+(prum!=null?"<p class='msg'>Průměr (vodné + stočné) z "+sz.length+" obcí: <b>"+kc(prum)+"</b>/m³</p>":"");
@@ -902,7 +902,7 @@ function loadData(){
     });
     if(!OBCE.length){document.getElementById("stav").innerHTML="⚠️ Data zatím nejsou ve Firebase. Spusť GitHub akci <b>Seed Volby (volby_obce)</b>, pak se sem načtou.";}
     recomputeZam();initProv();initPrac();initKdo();render();
-    updateStav();seedExtraObce();seedProvozovatel();
+    updateStav();seedExtraObce();seedProvozovatel();seedJenVodovod();
   });
 }
 // Obce mimo okres Svitavy, které chceme mít v seznamu i v mapě (hranice jsou
@@ -932,6 +932,29 @@ function seedProvozovatel(){
     var o=OBCE.filter(function(x){return String(x.kod)===k;})[0];
     if(!o||o.provozovano||o.provozovatel)return;   // jen existující neprovozované obce s prázdným polem
     FDB.ref("volby_obce/"+k+"/provozovatel").transaction(function(cur){return cur?undefined:text;}).catch(function(){});
+  });
+}
+/* ---- vodovod a kanalizace ----
+   vodovod: provozovano (VHOS) / provozovatel (jiný)
+   kanalizace: kanal = "" (stejně jako vodovod) | "vhos" | "jiny" | "zadna", provozovatel_kanal */
+function vodovodText(o){return o.provozovano?"VHOS"+(o.pracoviste?" · "+o.pracoviste:""):(o.provozovatel||"neuvedeno");}
+function kanalVhos(o){return o.kanal==="vhos"||(!o.kanal&&!!o.provozovano);}
+function kanalText(o){
+  if(o.kanal==="zadna")return "obec nemá kanalizaci";
+  if(o.kanal==="jiny")return o.provozovatel_kanal||"jiný provozovatel (neuveden)";
+  if(o.kanal==="vhos")return "VHOS";
+  return o.provozovano?"VHOS":(o.provozovatel||"neuvedeno");
+}
+function kanalJinak(o){return !!o.kanal&&kanalVhos(o)!==!!o.provozovano||o.kanal==="zadna"||(o.kanal==="jiny"&&!o.provozovano&&o.provozovatel_kanal&&o.provozovatel_kanal!==o.provozovatel);}
+// Jednorázově: obce, kde VHOS provozuje jen vodovod (kanalizaci ne)
+var JEN_VODOVOD=["578657","572691"]; // Radiměř, Hradec nad Svitavou
+var _jvHotovo=false;
+function seedJenVodovod(){
+  if(_jvHotovo||!_SPRAVCE||!OBCE.length||!_USER)return;_jvHotovo=true;
+  JEN_VODOVOD.forEach(function(k){
+    var o=OBCE.filter(function(x){return String(x.kod)===k;})[0];
+    if(!o||o.kanal)return;
+    FDB.ref("volby_obce/"+k+"/kanal").transaction(function(cur){return cur?undefined:"jiny";}).catch(function(){});
   });
 }
 function updateStav(){
@@ -1106,6 +1129,8 @@ function initPrac(){
 /* ---------- RENDER ---------- */
 function badgesHTML(o){var mimo=o.okres!=="Svitavy";
   return (o.provozovano?"<span class='b prac'>"+esc(o.pracoviste)+"</span>":"<span class='b np'>neprovozováno"+(o.provozovatel?" · provozuje: "+esc(o.provozovatel):"")+"</span>")+
+    (o.provozovano&&!kanalVhos(o)?"<span class='b over'>jen vodovod</span>":"")+
+    (!o.provozovano&&kanalVhos(o)?"<span class='b prac'>kanalizace VHOS</span>":"")+
     (mimo?"<span class='b mimo'>okres "+esc(o.okres)+"</span>":"")+
     (o.proverit?"<span class='b over'>🔎 k prověření</span>":"")+
     (o.overeno?"<span class='b ok'>✔ ověřeno</span>":(o.jistota==="nízká"?"<span class='b over'>starosta ověřit</span>":""))+
@@ -2333,9 +2358,14 @@ function renderModal(){
   var body;
   if(_EDIT){
     var provList={};provList["obec "+o.nazev]=1;OBCE.forEach(function(x){if(x.provozovatel)provList[x.provozovatel]=1;});
-    body=head+(o.provozovano?"":"<div class='sekce'>Vodovod</div>"+
-      "<div class='r'><b>Provozovatel vodovodu</b><input id='e_provozovatel' list='provDL' value=\""+esc(o.provozovatel||"")+"\" placeholder='např. obec "+esc(o.nazev)+"' /></div>"+
-      "<datalist id='provDL'>"+Object.keys(provList).sort(function(a,b){return a.localeCompare(b,"cs");}).map(function(v){return "<option value=\""+esc(v)+"\">";}).join("")+"</datalist>")+
+    OBCE.forEach(function(x){if(x.provozovatel_kanal)provList[x.provozovatel_kanal]=1;});
+    var kopt=function(v,t){return "<option value='"+v+"'"+((o.kanal||"")===v?" selected":"")+">"+t+"</option>";};
+    body=head+"<div class='sekce'>Vodovod a kanalizace</div>"+
+      (o.provozovano?"<div class='r'><b>Vodovod</b><span>VHOS"+(o.pracoviste?" · "+esc(o.pracoviste):"")+"</span></div>":
+        "<div class='r'><b>Provozovatel vodovodu</b><input id='e_provozovatel' list='provDL' value=\""+esc(o.provozovatel||"")+"\" placeholder='např. obec "+esc(o.nazev)+"' /></div>")+
+      "<div class='r'><b>Kanalizace</b><select id='e_kanal'>"+kopt("","stejně jako vodovod ("+esc(o.provozovano?"VHOS":(o.provozovatel||"neuvedeno"))+")")+kopt("vhos","VHOS")+kopt("jiny","jiný provozovatel")+kopt("zadna","obec nemá kanalizaci")+"</select></div>"+
+      "<div class='r' id='e_pk_row'"+(o.kanal==="jiny"?"":" style='display:none'")+"><b>Provozovatel kanalizace</b><input id='e_provozovatel_kanal' list='provDL' value=\""+esc(o.provozovatel_kanal||"")+"\" placeholder='např. obec "+esc(o.nazev)+"' /></div>"+
+      "<datalist id='provDL'>"+Object.keys(provList).sort(function(a,b){return a.localeCompare(b,"cs");}).map(function(v){return "<option value=\""+esc(v)+"\">";}).join("")+"</datalist>"+
       "<div class='sekce'>Vedení obce 2026–2030 <span class='obd'>· po ustavujícím zastupitelstvu</span></div>"+
       editRow("Starosta 2026–2030","e_starosta_2026",o.starosta_2026)+editRow("Starosta 2026 – telefon","e_starosta_2026_tel",o.starosta_2026_tel)+editRow("Starosta 2026 – e-mail","e_starosta_2026_email",o.starosta_2026_email)+
       editRow("Místostarosta 2026–2030","e_mistostarosta_2026",o.mistostarosta_2026)+editRow("Místostarosta 2026 – telefon","e_mistostarosta_2026_tel",o.mistostarosta_2026_tel)+editRow("Místostarosta 2026 – e-mail","e_mistostarosta_2026_email",o.mistostarosta_2026_email)+
@@ -2354,8 +2384,10 @@ function renderModal(){
       "<div class='hint'>Návštěva na řádek: <b>15.02.2026 14:30 — text</b> (čas nepovinný). Nabídne 📅 export do kalendáře.</div>";
   }else{
     var pz=function(v){return v?hl(v,_Q)+zamTag(v):"<span class='prazdne'>—</span>";};
-    body=head+(o.provozovano?"":"<div class='r'><b>💧 Provozovatel vodovodu</b><span>"+(o.provozovatel?esc(o.provozovatel):"<span class='prazdne'>neuveden</span>")+
-      " <span class='secedit' data-sec='provozovatel' title='Upravit'>✏️</span></span></div>")+
+    body=head+"<div class='r'><b>💧 Vodovod</b><span>"+(o.provozovano||o.provozovatel?esc(vodovodText(o)):"<span class='prazdne'>neuveden</span>")+
+      " <span class='secedit' data-sec='provozovatel' title='Upravit'>✏️</span></span></div>"+
+      "<div class='r'><b>🚰 Kanalizace</b><span>"+esc(kanalText(o))+(o.kanal?"":" <span style='color:#999;font-size:.8rem'>(stejně jako vodovod)</span>")+
+      " <span class='secedit' data-sec='provozovatel' title='Upravit'>✏️</span></span></div>"+
       "<div class='sekce'>Vedení obce <span class='obd'>· období 2026–2030</span></div>"+
       det("Starosta 2026–2030",o.starosta_2026?pz(o.starosta_2026):"<span class='prazdne'>zatím nezvolen (✏️ Upravit)</span>",viewRow("Telefon",o.starosta_2026_tel,"tel")+viewRow("E-mail",o.starosta_2026_email,"email"),!!o.starosta_2026)+
       det("Místostarosta 2026–2030",o.mistostarosta_2026?pz(o.mistostarosta_2026):"<span class='prazdne'>—</span>",viewRow("Telefon",o.mistostarosta_2026_tel,"tel")+viewRow("E-mail",o.mistostarosta_2026_email,"email"),false)+
@@ -2415,12 +2447,14 @@ function renderModal(){
     (o.kandidatky_zdroj?" | kandidátky 2026: "+esc(o.kandidatky_zdroj)+(o.kandidatky_ts?" ("+new Date(o.kandidatky_ts).toLocaleDateString("cs")+")":""):"")+"</div>";
   document.getElementById("mbody").innerHTML=body;
   Array.prototype.forEach.call(document.querySelectorAll("#mbody .cal"),function(el){el.addEventListener("click",function(e){e.stopPropagation();icsFromEl(el);});});
-  Array.prototype.forEach.call(document.querySelectorAll("#mbody .secedit"),function(el){el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();var s=el.getAttribute("data-sec");if(s==="provozovatel"){_EDIT=true;renderModal();var pf=document.getElementById("e_provozovatel");if(pf){pf.focus();pf.scrollIntoView({block:"center"});}return;}if(s==="poznamky")openPoznEditor();else if(s==="navstevy")openNavEditor();else if(s==="programy")openProgramEditor();else if(s==="vysledky")openVysledkyEditor("2022");else if(s==="vysledky26")openVysledkyEditor("2026");});});
+  Array.prototype.forEach.call(document.querySelectorAll("#mbody .secedit"),function(el){el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();var s=el.getAttribute("data-sec");if(s==="provozovatel"){_EDIT=true;renderModal();var pf=document.getElementById("e_provozovatel")||document.getElementById("e_kanal");if(pf){pf.focus();pf.scrollIntoView({block:"center"});}return;}if(s==="poznamky")openPoznEditor();else if(s==="navstevy")openNavEditor();else if(s==="programy")openProgramEditor();else if(s==="vysledky")openVysledkyEditor("2022");else if(s==="vysledky26")openVysledkyEditor("2026");});});
   if(!_EDIT){pgNavazSoubory(o);pzNavaz(o);cenyNavaz(o);}
   // Okno se zobrazuje až po renderModal(), takže scrollovat teď by bylo do
   // skrytého prvku a neudělalo by to nic – proto až v dalším snímku.
   if(!_EDIT&&_Q)pozdeji(zamerZvyrazneni);
   if(_EDIT){
+    var ek=document.getElementById("e_kanal");
+    if(ek)ek.addEventListener("change",function(){document.getElementById("e_pk_row").style.display=ek.value==="jiny"?"":"none";if(ek.value==="jiny")document.getElementById("e_provozovatel_kanal").focus();});
     document.getElementById("saveBtn").addEventListener("click",saveEdit);
     document.getElementById("cancelBtn").addEventListener("click",function(){_EDIT=false;renderModal();});
   }else{
@@ -2448,6 +2482,7 @@ function saveEdit(){
     mistostarosta_2026:g("e_mistostarosta_2026"),mistostarosta_2026_tel:g("e_mistostarosta_2026_tel"),mistostarosta_2026_email:g("e_mistostarosta_2026_email"),
     upravil:_USER.email,upravil_ts:Date.now()};
   if(document.getElementById("e_provozovatel"))upd.provozovatel=g("e_provozovatel");
+  if(document.getElementById("e_kanal")){upd.kanal=document.getElementById("e_kanal").value;upd.provozovatel_kanal=upd.kanal==="jiny"?g("e_provozovatel_kanal"):"";}
   document.getElementById("mmsg").textContent="Ukládám…";
   FDB.ref("volby_obce/"+o.kod).update(upd).then(function(){
     Object.assign(o,upd);_EDIT=false;renderModal();
@@ -2560,7 +2595,9 @@ function initMap(){
       // funkce = text se sklada pri kazdem najeti, takze ukaze i cerstve upraveneho starostu
       layer.bindTooltip(function(){
         var o=OBCE.filter(function(x){return x.kod===p.kod;})[0];
-        return "<b>"+esc(p.nazev)+"</b>"+(p.provozovano?" · "+esc(p.pracoviste):" · neprovozováno"+(o&&o.provozovatel?"<br>Provozuje: "+esc(o.provozovatel):""))+
+        var vk="";
+        if(o&&(kanalJinak(o)||(!p.provozovano&&o.provozovatel)))vk="<br>Vodovod: "+esc(vodovodText(o))+"<br>Kanalizace: "+esc(kanalText(o));
+        return "<b>"+esc(p.nazev)+"</b>"+(p.provozovano?" · "+esc(p.pracoviste):" · neprovozováno")+vk+
           mapStarostaHTML(o)+cenaTooltip(p.kod);
       },{sticky:true});
       layer.on("click",function(){var o=OBCE.filter(function(x){return x.kod===p.kod;})[0]; if(o) openModal(o);});
@@ -4255,7 +4292,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v65";
+var VERZE="2026-11-10 · v66";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
