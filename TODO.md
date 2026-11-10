@@ -1,6 +1,11 @@
 # Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
+- **Ceny svazků** (v77): `volby_ceny/sv_<id svazku>/<rok>`; obec ve svazku přebírá
+  každou cenu svazku, kterou sama nemá (`cenaRok`). Zadání v detailu svazku (💧 Ceny
+  vody svazku) nebo importem z Excelu – řádek jde přiřadit ke svazku. V mapě poznámka
+  „vodné ze svazku …“, v přehledu značka sv.
+- **Mapa** (v76): klik na obec = okénko se základními údaji + Zobrazit vše.
 - **Vedení zůstává** (v74): v detailu obce u prázdného starosty/místostarosty 2026–2030
   tlačítko „↪ zůstává …“ (převezme jméno, tel., e-mail z 2022–26, jen prázdná pole,
   ukáže, zda byl zvolen 2026); v úpravě obce tlačítko „Vedení zůstává“; pro správce
