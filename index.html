@@ -401,9 +401,10 @@ var _SPRAVCE=false;
 function keyToEmail(k){return String(k||"").replace(/,/g,".");}
 function checkSpravce(user){
   _SPRAVCE=false;document.getElementById("pristupyBtn").classList.add("hidden");
-  FDB.ref("volby_spravci/"+leKey(user.email)).get().then(function(s){
-    if(s.exists()&&_USER===user){_SPRAVCE=true;document.getElementById("pristupyBtn").classList.remove("hidden");}
-  }).catch(function(){});
+  function ano(){if(_USER===user){_SPRAVCE=true;document.getElementById("pristupyBtn").classList.remove("hidden");}}
+  // správce = admin claim (jako ve Floriánu) nebo záznam v volby_spravci
+  user.getIdTokenResult().then(function(t){if(t&&t.claims&&t.claims.admin===true)ano();}).catch(function(){});
+  FDB.ref("volby_spravci/"+leKey(user.email)).get().then(function(s){if(s.exists())ano();}).catch(function(){});
 }
 function chybaPristupu(e){
   var m=e&&e.message?e.message:String(e);
@@ -3702,7 +3703,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v51";
+var VERZE="2026-11-10 · v52";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
