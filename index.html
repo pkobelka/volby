@@ -100,6 +100,10 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 .sek2>summary .chev{color:#a9b0a0;transition:transform .15s;flex:0 0 auto;}
 .sek2[open]>summary .chev{transform:rotate(180deg);}
 .sek2 .sbody{padding:0 12px 8px;}
+.sek2 .sek2{background:#fff;}
+.volbyobal{margin-top:14px;}
+.volbyobal>.sek2{border-color:#cfe3d3;background:#f4faf5;}
+.volbyobal>.sek2>summary{font-size:1rem;}
 .sek2 .sbody .r:first-child{border-top:1px solid #eef1ea;padding-top:8px;}
 .obeclist{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
 .obeclink{background:#eef3ec;color:#2f6b3c;border:1px solid #d9e4d4;border-radius:999px;padding:4px 10px;font-size:.85rem;cursor:pointer;}
@@ -2391,6 +2395,7 @@ function renderModal(){
       " <span class='secedit' data-sec='provozovatel' title='Upravit'>✏️</span></span></div>"+
       "<div class='r'><b>🚰 Kanalizace</b><span>"+esc(kanalText(o))+(o.kanal?"":" <span style='color:#999;font-size:.8rem'>(stejně jako vodovod)</span>")+
       " <span class='secedit' data-sec='provozovatel' title='Upravit'>✏️</span></span></div>"+
+      det("💧 Ceny vody","<span id='cenySum'>"+esc(cenaSouhrn(o.kod))+"</span>","<div id='cenyBox'>"+cenyDetailHTML(o.kod)+"</div>",false)+
       "<div class='sekce'>Vedení obce <span class='obd'>· období 2026–2030</span></div>"+
       det("Starosta 2026–2030",o.starosta_2026?pz(o.starosta_2026):"<span class='prazdne'>zatím nezvolen (✏️ Upravit)</span>",viewRow("Telefon",o.starosta_2026_tel,"tel")+viewRow("E-mail",o.starosta_2026_email,"email"),!!o.starosta_2026)+
       det("Místostarosta 2026–2030",o.mistostarosta_2026?pz(o.mistostarosta_2026):"<span class='prazdne'>—</span>",viewRow("Telefon",o.mistostarosta_2026_tel,"tel")+viewRow("E-mail",o.mistostarosta_2026_email,"email"),false)+
@@ -2401,28 +2406,32 @@ function renderModal(){
       det("Účetní",pz(o.ucetni),viewRow("Telefon",o.ucetni_tel,"tel")+viewRow("E-mail",o.ucetni_email,"email"),false)+
       det("Zastupitelstvo"+(z22.length?" ("+z22.length+")":""),"",zastList(z22,"— k doplnění —"),false);
     var v22=o.vysledky_2022, s22=kstrany(o,"2022"), k22=kjmena(o,"2022"), v26=o.vysledky_2026;
-    body+="<div class='sekce'>Volby 2022 <span class='obd'>· z čeho vzešlo zastupitelstvo</span></div>"+
+    // vse z voleb 2022 a 2026 je v jedne slozce, at detail neni tak dlouhy
+    var vol="", volOtevrit=false, o22=fKdo==="v22", ok22=fKdo==="k22";
+    vol+="<div class='sekce'>Volby 2022 <span class='obd'>· z čeho vzešlo zastupitelstvo</span></div>"+
       det("Výsledky voleb 2022"+((v22&&v22.strany)?" ("+v22.strany.length+")":""),
-        secPencil("vysledky"),vysledkyHTML(o,"2022"),fKdo==="v22");
+        secPencil("vysledky"),vysledkyHTML(o,"2022"),o22);
     if(s22.length||k22.length)
-      body+=det("Kandidátky 2022 ("+(function(){
+      vol+=det("Kandidátky 2022 ("+(function(){
         return (s22.length?s22.length+" "+pl(s22.length,"strana","strany","stran"):"")+
           (k22.length?(s22.length?" / ":"")+k22.length+" "+pl(k22.length,"kandidát","kandidáti","kandidátů"):"");})()+")",
-        "",kandListHTML(o,"2022"),fKdo==="k22");
+        "",kandListHTML(o,"2022"),ok22);
     var k26=o.kandidati_2026||[], s26=o.strany_2026||[];
     // rozbalit i při hledání, když dotaz sedí jen na kandidáta – jinak by
     // zvýraznění zůstalo schované v zabalené sekci
     var otevritKand=_OPENKAND||fKdo==="k26"||(!!_Q&&matchArr(k26,_Q));
-    body+="<div class='sekce'>Volby 2026 <span class='obd'>· období 2026–2030</span></div>"+
+    var o26=fKdo==="v26"||(!!_Q&&fKdo!=="z22"&&matchStranyV(o,_Q,"2026"));
+    vol+="<div class='sekce'>Volby 2026 <span class='obd'>· období 2026–2030</span></div>"+
       det("Výsledky voleb 2026"+((v26&&v26.strany)?" ("+v26.strany.length+")":""),
-        secPencil("vysledky26"),vysledkyHTML(o,"2026"),fKdo==="v26"||(!!_Q&&fKdo!=="z22"&&matchStranyV(o,_Q,"2026")));
-    if(k26.length||s26.length) body+=
+        secPencil("vysledky26"),vysledkyHTML(o,"2026"),o26);
+    if(k26.length||s26.length) vol+=
       det("Kandidátky ("+(function(){var n=s26.length||o.pocet_stran_2026||0;
         return (n?n+" "+pl(n,"strana","strany","stran"):"")+(k26.length?(n?" / ":"")+k26.length+" "+pl(k26.length,"kandidát","kandidáti","kandidátů"):"");})()+")","",kandListHTML(o),otevritKand);
     // Rozcestnik na programy dava smysl i pred nactenim kandidatek – proto
     // se sekce ukazuje vzdy (bez kandidatky uvnitr jen odkazy za obec).
-    body+=det("💧 Ceny vody","<span id='cenySum'>"+esc(cenaSouhrn(o.kod))+"</span>","<div id='cenyBox'>"+cenyDetailHTML(o.kod)+"</div>",false);
-    body+=det("Volební programy",secPencil("programy"),programyHTML(o),false);
+    vol+=det("Volební programy",secPencil("programy"),programyHTML(o),false);
+    volOtevrit=o22||ok22||o26||(otevritKand&&(k26.length||s26.length));
+    body+="<div class='volbyobal'>"+det("🗳️ Volby 2022 a 2026","<span style='font-size:.8rem;color:#889'>výsledky · kandidátky · programy</span>",vol,volOtevrit)+"</div>";
     if(o.rada&&o.rada.length) body+=det("Městská rada ("+o.rada.length+")","",listUL(o.rada),false);
     if(o.terminy&&o.terminy.length) body+=det("Termíny zastupitelstev","",listCal(o.terminy,"Zastupitelstvo "+o.nazev,o.nazev),false);
     var pzN=pzObce(o.kod).length;
@@ -4302,7 +4311,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v67";
+var VERZE="2026-11-10 · v68";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
