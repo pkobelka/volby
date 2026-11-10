@@ -1162,6 +1162,13 @@ function zustavaUloz(o,f){
   FDB.ref("volby_obce/"+o.kod).update(u).then(function(){Object.assign(o,u);renderModal();})
     .catch(function(e){alert("⚠️ "+(e&&e.message?e.message:e));});
 }
+function zrusBtn(f){return " <a href='#' class='zrusBtn' data-f='"+f+"' title='Vymazat "+(f==="starosta"?"starostu":"místostarostu")+" 2026–2030' style='font-size:.8rem;margin-left:6px;text-decoration:none'>✖</a>";}
+function zustavaZrus(o,f){
+  if(!confirm("Vymazat "+(f==="starosta"?"starostu":"místostarostu")+" 2026–2030 ("+o[f+"_2026"]+") včetně telefonu a e-mailu?"))return;
+  var u={upravil:_USER.email,upravil_ts:Date.now()};u[f+"_2026"]="";u[f+"_2026_tel"]="";u[f+"_2026_email"]="";
+  FDB.ref("volby_obce/"+o.kod).update(u).then(function(){Object.assign(o,u);renderModal();})
+    .catch(function(e){alert("⚠️ "+(e&&e.message?e.message:e));});
+}
 function zustavaHromadne(){
   if(!_SPRAVCE)return;
   var mb=document.getElementById("mbody");
@@ -1173,13 +1180,31 @@ function zustavaHromadne(){
     return "<td style='padding:4px'><label><input type='checkbox' class='zhChk' data-i='"+i+"' data-f='"+f+"'"+(z===true?" checked":"")+"> "+esc(o[f])+"</label>"+
       "<div style='font-size:.75rem;color:"+(z===true?"#2f6b3c":z===false?"#b5453a":"#999")+"'>"+(z===true?"✔ zvolen do zastupitelstva 2026":z===false?"není mezi zvolenými 2026":"výsledky 2026 nejsou")+"</div></td>";
   }
+  var prevz=OBCE.filter(function(o){return (o.starosta_2026&&o.starosta&&fold(o.starosta_2026)===fold(o.starosta))||(o.mistostarosta_2026&&o.mistostarosta&&fold(o.mistostarosta_2026)===fold(o.mistostarosta));})
+    .sort(function(a,b){return a.nazev.localeCompare(b.nazev,"cs");});
+  function bunkaZ(o,f,i){var ok=o[f+"_2026"]&&o[f]&&fold(o[f+"_2026"])===fold(o[f]);
+    return "<td style='padding:4px'>"+(ok?"<label><input type='checkbox' class='zrChk' data-i='"+i+"' data-f='"+f+"'> "+esc(o[f+"_2026"])+"</label>":"<span style='color:#aaa'>—</span>")+"</td>";}
+  var zrusHTML=prevz.length?"<h3 style='margin-top:18px'>Už převzaté (stejné jméno jako 2022–2026)</h3><p class='msg'>Zaškrtni, co bylo převzato omylem, a klikni na Vrátit – vymaže se jméno, telefon i e-mail 2026–2030.</p>"+
+    "<div style='overflow:auto'><table style='width:100%;border-collapse:collapse;font-size:.85rem'><tr style='text-align:left;border-bottom:2px solid #ddd'><th style='padding:4px'>Obec</th><th style='padding:4px'>Starosta 2026–30</th><th style='padding:4px'>Místostarosta 2026–30</th></tr>"+
+    prevz.map(function(o,i){return "<tr style='border-bottom:1px solid #eee'><td style='padding:4px'><b>"+esc(o.nazev)+"</b></td>"+bunkaZ(o,"starosta",i)+bunkaZ(o,"mistostarosta",i)+"</tr>";}).join("")+
+    "</table></div><div class='mtools'><button class='btn ghost' id='zrUloz'>↩️ Vrátit zaškrtnuté</button></div><div class='msg' id='zrMsg'></div>":"";
   mb.innerHTML="<h2>↪ Vedení obce zůstává</h2>"+
     "<p class='msg'>Převezme jméno, telefon a e-mail z období 2022–2026 do 2026–2030 (jen prázdná pole). Předem zaškrtnutí jsou ti, kdo byli v roce 2026 znovu zvoleni do zastupitelstva – zvolení starostou to ale nezaručuje, projdi si to.</p>"+
     (rows.length?"<div style='margin:6px 0'><button class='btn ghost small' id='zhVse'>Zaškrtnout vše</button> <button class='btn ghost small' id='zhNic'>Odškrtnout vše</button></div>"+
     "<div style='overflow:auto'><table style='width:100%;border-collapse:collapse;font-size:.85rem'><tr style='text-align:left;border-bottom:2px solid #ddd'><th style='padding:4px'>Obec</th><th style='padding:4px'>Starosta</th><th style='padding:4px'>Místostarosta</th></tr>"+
     rows.map(function(o,i){return "<tr style='border-bottom:1px solid #eee;vertical-align:top'><td style='padding:4px'><b>"+esc(o.nazev)+"</b></td>"+bunka(o,"starosta",i)+bunka(o,"mistostarosta",i)+"</tr>";}).join("")+
-    "</table></div><div class='mtools'><button class='btn' id='zhUloz'>💾 Převzít zaškrtnuté</button></div><div class='msg' id='zhMsg'></div>":"<p>Všechny obce už vedení 2026–2030 mají, nebo u nich chybí starosta 2022–2026.</p>");
+    "</table></div><div class='mtools'><button class='btn' id='zhUloz'>💾 Převzít zaškrtnuté</button></div><div class='msg' id='zhMsg'></div>":"<p>Všechny obce už vedení 2026–2030 mají, nebo u nich chybí starosta 2022–2026.</p>")+zrusHTML;
   document.getElementById("modal").classList.add("show");
+  if(prevz.length)document.getElementById("zrUloz").addEventListener("click",function(){
+    var upd={},n=0,ts=Date.now();
+    Array.prototype.forEach.call(mb.querySelectorAll(".zrChk:checked"),function(c){var o=prevz[+c.getAttribute("data-i")],f=c.getAttribute("data-f");
+      upd[o.kod+"/"+f+"_2026"]="";upd[o.kod+"/"+f+"_2026_tel"]="";upd[o.kod+"/"+f+"_2026_email"]="";upd[o.kod+"/upravil"]=_USER.email;upd[o.kod+"/upravil_ts"]=ts;n++;});
+    var msg=document.getElementById("zrMsg");if(!n){msg.textContent="Nic není zaškrtnuté.";return;}
+    if(!confirm("Vrátit "+n+"× – vymazat vedení 2026–2030?"))return;
+    msg.textContent="Ukládám…";
+    FDB.ref("volby_obce").update(upd).then(function(){prevz.forEach(function(o){});msg.textContent="✅ Vráceno "+n+"×.";setTimeout(zustavaHromadne,600);})
+      .catch(function(e){msg.textContent="⚠️ "+(e&&e.message?e.message:e);});
+  });
   if(!rows.length)return;
   document.getElementById("zhVse").addEventListener("click",function(){Array.prototype.forEach.call(mb.querySelectorAll(".zhChk"),function(c){c.checked=true;});});
   document.getElementById("zhNic").addEventListener("click",function(){Array.prototype.forEach.call(mb.querySelectorAll(".zhChk"),function(c){c.checked=false;});});
@@ -2629,8 +2654,8 @@ function renderModal(){
       " <span class='secedit' data-sec='provozovatel' title='Upravit'>✏️</span></span></div>"+
       det("💧 Ceny vody","<span id='cenySum'>"+esc(cenaSouhrn(o.kod))+"</span>","<div id='cenyBox'>"+cenyDetailHTML(o.kod)+"</div>",false)+
       "<div class='sekce'>Vedení obce <span class='obd'>· období 2026–2030</span></div>"+
-      det("Starosta 2026–2030",o.starosta_2026?pz(o.starosta_2026):zustavaBtn(o,"starosta"),viewRow("Telefon",o.starosta_2026_tel,"tel")+viewRow("E-mail",o.starosta_2026_email,"email"),!!o.starosta_2026)+
-      det("Místostarosta 2026–2030",o.mistostarosta_2026?pz(o.mistostarosta_2026):zustavaBtn(o,"mistostarosta"),viewRow("Telefon",o.mistostarosta_2026_tel,"tel")+viewRow("E-mail",o.mistostarosta_2026_email,"email"),false)+
+      det("Starosta 2026–2030",o.starosta_2026?pz(o.starosta_2026)+zrusBtn("starosta"):zustavaBtn(o,"starosta"),viewRow("Telefon",o.starosta_2026_tel,"tel")+viewRow("E-mail",o.starosta_2026_email,"email"),!!o.starosta_2026)+
+      det("Místostarosta 2026–2030",o.mistostarosta_2026?pz(o.mistostarosta_2026)+zrusBtn("mistostarosta"):zustavaBtn(o,"mistostarosta"),viewRow("Telefon",o.mistostarosta_2026_tel,"tel")+viewRow("E-mail",o.mistostarosta_2026_email,"email"),false)+
       "<div class='sekce'>Kontakty <span class='obd'>· období 2022–2026</span></div>"+
       det("Starosta",pz(o.starosta),viewRow("Telefon",o.starosta_tel,"tel")+viewRow("E-mail",o.starosta_email,"email"),true)+
       det("Místostarosta",pz(o.mistostarosta),viewRow("Telefon",o.mistostarosta_tel,"tel")+viewRow("E-mail",o.mistostarosta_email,"email"),false)+
@@ -2695,7 +2720,9 @@ function renderModal(){
   Array.prototype.forEach.call(document.querySelectorAll("#mbody .secedit"),function(el){el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();var s=el.getAttribute("data-sec");if(s==="provozovatel"){_EDIT=true;renderModal();var pf=document.getElementById("e_provozovatel")||document.getElementById("e_kanal");if(pf){pf.focus();pf.scrollIntoView({block:"center"});}return;}if(s==="poznamky")openPoznEditor();else if(s==="navstevy")openNavEditor();else if(s==="programy")openProgramEditor();else if(s==="vysledky")openVysledkyEditor("2022");else if(s==="vysledky26")openVysledkyEditor("2026");});});
   if(!_EDIT){pgNavazSoubory(o);pzNavaz(o);cenyNavaz(o);
     Array.prototype.forEach.call(document.querySelectorAll("#mbody .zustBtn"),function(b){b.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();
-      zustavaUloz(o,b.getAttribute("data-f"));});});}
+      zustavaUloz(o,b.getAttribute("data-f"));});});
+    Array.prototype.forEach.call(document.querySelectorAll("#mbody .zrusBtn"),function(b){b.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();
+      zustavaZrus(o,b.getAttribute("data-f"));});});}
   // Okno se zobrazuje až po renderModal(), takže scrollovat teď by bylo do
   // skrytého prvku a neudělalo by to nic – proto až v dalším snímku.
   if(!_EDIT&&_Q)pozdeji(zamerZvyrazneni);
@@ -4551,7 +4578,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v74";
+var VERZE="2026-11-10 · v75";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
