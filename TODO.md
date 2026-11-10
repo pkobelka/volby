@@ -1,6 +1,10 @@
 # Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
+- **Správa přístupů** (v51): tlačítko 👥 Přístupy vpravo nahoře vidí jen správci
+  z uzlu `volby_spravci` (klíč = e-mail, tečky → čárky). Přidává/odebírá e-maily
+  v `florian_login_email` (společné s Floriánem). **Ve Firebase je potřeba uzel
+  `volby_spravci` a pravidla** – zápis do `florian_login_email` jen pro správce.
 - **Výsledky voleb 2026** (v44): pod Volby 2026 podsložka *Výsledky voleb*, v detailu
   obce sekce *Výsledky voleb 2026* (✏️ = vložit stránku z volby.cz, jako u 2022)
   a dole tlačítko **📊 Výsledky voleb** = import za celý okres z XML
