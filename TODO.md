@@ -1,6 +1,10 @@
 # Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
+- **Starostové z Wikidat** (v62, jen správce): tlačítko 👤 Doplnit starosty – SPARQL z
+  prohlížeče (P7606/P782 → P6 s daty od/do), náhled, zapíše jen zaškrtnuté do
+  `starosta` (2022–26) a `starosta_2026`, k tomu `*_zdroj: Wikidata`. Odsud
+  (z cloudu) se na Wikidata nedá dostat, dotaz neověřen na živých datech.
 - **Velké Opatovice** (v61, okres Blansko, kód 582646, neprovozováno): hranice v
   `hranice.json` (ČÚZK INSPIRE přes siwekm/czech-geojson), záznam ve `volby_obce`
   založí správce automaticky (`EXTRA_OBCE`). Import kandidátek/výsledků je dál jen

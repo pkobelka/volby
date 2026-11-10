@@ -303,6 +303,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <button class="btn ghost small admonly" id="vysledkyBtn">📊 Výsledky voleb</button>
 <button class="btn ghost small admonly" id="tiskBtn">🖨️ Tisk kandidátek</button>
 <button class="btn ghost small admonly" id="acBtn">💧 Porovnat s AquaControl</button>
+<button class="btn ghost small admonly" id="wdStarosty">👤 Doplnit starosty (Wikidata)</button>
 <input type="file" id="vxFile" accept=".xml,.zip,application/xml,text/xml" style="display:none" />
 <input type="file" id="acFile" accept=".xlsx,.xlsm,.xlsb,.xls,.csv,.txt,.tsv" style="display:none" />
 <input type="file" id="importFile" accept=".json,application/json" multiple style="display:none" />
@@ -685,6 +686,84 @@ function pzPrehledRender(){
   pzNavazList(list,function(kod){var o=OBCE.filter(function(x){return String(x.kod)===kod;})[0];if(o)openModal(o);});
 }
 document.getElementById("pzPrehledBtn").addEventListener("click",pzPrehledOtevri);
+
+/* ---------- STAROSTOVÉ Z WIKIDAT (jen správce) ----------
+   Starostu volí zastupitelstvo, ve volebních datech není. Wikidata mají u obcí
+   vlastnost P6 (představitel) s daty od/do. Dotaz jde z prohlížeče, výsledek se
+   ukáže k odsouhlasení a zapíše se jen to, co správce zaškrtne. */
+var _WD=[];
+function wdDatum(x){return x?String(x).slice(0,10):"";}
+function wdStarostyOtevri(){
+  if(!_SPRAVCE)return;
+  var mb=document.getElementById("mbody");
+  mb.innerHTML="<h2>👤 Starostové z Wikidat</h2><p class='msg'>Ptám se Wikidat…</p>";
+  document.getElementById("modal").classList.add("show");
+  // obec hledáme podle kódu ČSÚ (P7606) i podle LAU (P782, bývá i s prefixem NUTS okresu)
+  var NUTS={"Svitavy":"CZ0533","Ústí nad Orlicí":"CZ0534","Blansko":"CZ0641","Chrudim":"CZ0531","Šumperk":"CZ0715","Prostějov":"CZ0713","Žďár nad Sázavou":"CZ0635"};
+  var vals=[];
+  OBCE.forEach(function(o){var k=String(o.kod).replace(/[^0-9]/g,"");if(!k)return;
+    vals.push('("'+k+'" "'+k+'")');var n=NUTS[o.okres||"Svitavy"];if(n)vals.push('("'+k+'" "'+n+k+'")');});
+  var q="SELECT DISTINCT ?kod ?osobaLabel ?od ?do WHERE { VALUES (?kod ?k) { "+vals.join(" ")+" } ?obec wdt:P7606|wdt:P782 ?k . ?obec p:P6 ?st . ?st ps:P6 ?osoba . "+
+    "OPTIONAL { ?st pq:P580 ?od } OPTIONAL { ?st pq:P582 ?do } SERVICE wikibase:label { bd:serviceParam wikibase:language \"cs,en\". } }";
+  fetch("https://query.wikidata.org/sparql?format=json&query="+encodeURIComponent(q),{headers:{"Accept":"application/sparql-results+json"}})
+  .then(function(r){if(!r.ok)throw new Error("Wikidata odpověděla "+r.status);return r.json();})
+  .then(function(j){
+    var by={};
+    (j.results&&j.results.bindings||[]).forEach(function(b){
+      var k=b.kod.value;(by[k]=by[k]||[]).push({jm:b.osobaLabel?b.osobaLabel.value:"",od:wdDatum(b.od&&b.od.value),do_:wdDatum(b["do"]&&b["do"].value)});
+    });
+    // období 2022–2026: ve funkci někdy mezi ustavujícím zastupitelstvem 2022 a volbami 2026
+    var Z="2022-10-01", K="2026-10-02";
+    _WD=[];
+    OBCE.forEach(function(o){
+      var a=by[String(o.kod)]||[];
+      var st=a.filter(function(x){return /^Q\d+$/.test(x.jm)===false&&(!x.od||x.od<K)&&(!x.do_||x.do_>Z);})
+              .sort(function(x,y){return (y.od||"").localeCompare(x.od||"");});
+      var nov=a.filter(function(x){return x.od&&x.od>=K;}).sort(function(x,y){return y.od.localeCompare(x.od);});
+      var w=st[0], n=nov[0];
+      if(!w&&!n)return;
+      _WD.push({o:o,w:w,n:n});
+    });
+    _WD.sort(function(x,y){return x.o.nazev.localeCompare(y.o.nazev,"cs");});
+    wdRender();
+  }).catch(function(e){mb.innerHTML="<h2>👤 Starostové z Wikidat</h2><p class='msg'>⚠️ "+esc(e.message||String(e))+"</p>";});
+}
+function wdRender(){
+  var mb=document.getElementById("mbody");
+  var bez=OBCE.filter(function(o){return !o.starosta;}).length;
+  var h="<h2>👤 Starostové z Wikidat</h2>"+
+    "<p class='msg'>Nalezeno u "+_WD.length+" z "+OBCE.length+" obcí. Bez starosty 2022–2026 je teď "+bez+" obcí. "+
+    "Předvyplněné jsou jen prázdné hodnoty, nic se nepřepíše, pokud to sám nezaškrtneš. Wikidata nejsou vždy aktuální – ber je jako návrh.</p>"+
+    "<div style='overflow:auto'><table style='width:100%;border-collapse:collapse;font-size:.85rem'><tr style='text-align:left;border-bottom:2px solid #ddd'>"+
+    "<th style='padding:4px'>Obec</th><th style='padding:4px'>Starosta 2022–2026: teď → Wikidata</th><th style='padding:4px'>Nový 2026–2030: teď → Wikidata</th></tr>";
+  _WD.forEach(function(x,i){
+    var o=x.o;
+    function bunka(pole,v,tag){
+      if(!v)return "<td style='padding:4px;color:#aaa'>—</td>";
+      var cur=o[pole]||"", stejne=cur&&fold(cur)===fold(v.jm);
+      return "<td style='padding:4px'>"+(cur?esc(cur):"<i style='color:#aaa'>prázdné</i>")+" → "+
+        (stejne?"<span style='color:#2f6b3c'>✔ stejné</span>":
+        "<label><input type='checkbox' class='wdchk' data-i='"+i+"' data-p='"+pole+"'"+(cur?"":" checked")+"> <b>"+esc(v.jm)+"</b></label>")+
+        "<div style='color:#889;font-size:.75rem'>"+(v.od?"od "+esc(v.od):"")+(v.do_?" do "+esc(v.do_):"")+"</div></td>";
+    }
+    h+="<tr style='border-bottom:1px solid #eee'><td style='padding:4px'><b>"+esc(o.nazev)+"</b></td>"+bunka("starosta",x.w)+bunka("starosta_2026",x.n)+"</tr>";
+  });
+  h+="</table></div><div class='mtools'><button class='btn' id='wdUlozit'>💾 Doplnit zaškrtnuté</button></div><div class='msg' id='wdMsg'></div>";
+  mb.innerHTML=h;
+  document.getElementById("wdUlozit").addEventListener("click",function(){
+    var upd={}, n=0, ts=Date.now();
+    Array.prototype.forEach.call(mb.querySelectorAll(".wdchk:checked"),function(c){
+      var x=_WD[+c.getAttribute("data-i")], pole=c.getAttribute("data-p"), v=pole==="starosta"?x.w:x.n;
+      upd[x.o.kod+"/"+pole]=v.jm; upd[x.o.kod+"/"+pole+"_zdroj"]="Wikidata"; upd[x.o.kod+"/upravil"]=_USER.email; upd[x.o.kod+"/upravil_ts"]=ts; n++;
+    });
+    var msg=document.getElementById("wdMsg");
+    if(!n){msg.textContent="Nic není zaškrtnuté.";return;}
+    msg.textContent="Ukládám "+n+"…";
+    FDB.ref("volby_obce").update(upd).then(function(){msg.textContent="✅ Doplněno "+n+" starostů.";})
+      .catch(function(e){msg.textContent="⚠️ "+(e&&e.message?e.message:e);});
+  });
+}
+document.getElementById("wdStarosty").addEventListener("click",wdStarostyOtevri);
 
 if(AUTH.isSignInWithEmailLink(window.location.href)){
   var em=localStorage.getItem("volby_email")||window.prompt("Potvrď svůj e-mail pro přihlášení:");
@@ -4042,7 +4121,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v61";
+var VERZE="2026-11-10 · v62";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
