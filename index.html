@@ -310,6 +310,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <button class="btn ghost small admonly" id="acBtn">💧 Porovnat s AquaControl</button>
 <button class="btn ghost small admonly" id="wdStarosty">👤 Doplnit starosty (Wikidata)</button>
 <input type="file" id="vxFile" accept=".xml,.zip,application/xml,text/xml" style="display:none" />
+<input type="file" id="cenyFile" accept=".xlsx,.xls,.xlsm" style="display:none" />
 <input type="file" id="acFile" accept=".xlsx,.xlsm,.xlsb,.xls,.csv,.txt,.tsv" style="display:none" />
 <input type="file" id="importFile" accept=".json,application/json" multiple style="display:none" />
 <input type="file" id="kandFile" accept=".zip,.csv,.txt,.tsv,.xml,.json,.html,.htm,.xlsx,.xls" multiple style="display:none" />
@@ -692,7 +693,7 @@ function pzPrehledRender(){
 }
 document.getElementById("pzPrehledBtn").addEventListener("click",pzPrehledOtevri);
 
-/* ---------- CENY VODY: volby_ceny/<kod>/<rok> = {vodne, stocne} v Kč/m³ vč. DPH ----------
+/* ---------- CENY VODY: volby_ceny/<kod>/<rok> = {vodne (VF), stocne (VO), predana} v Kč/m³ vč. DPH ----------
    vidí všichni s přístupem, upravuje jen správce */
 var _CENY={}, _cenyRef=null;
 function startCeny(){
@@ -702,23 +703,26 @@ function startCeny(){
 function stopCeny(){if(_cenyRef){_cenyRef.off();_cenyRef=null;}_CENY={};}
 function kc(v){return (v==null||v==="")?"—":Number(v).toLocaleString("cs-CZ",{minimumFractionDigits:2,maximumFractionDigits:2})+" Kč";}
 function cenyRoky(kod){var c=_CENY[String(kod)]||{};return Object.keys(c).filter(function(r){return /^\d{4}$/.test(r);}).sort().reverse();}
-function cenaPosledni(kod){var r=cenyRoky(kod)[0];if(!r)return null;var c=_CENY[String(kod)][r]||{};return {rok:r,vodne:c.vodne,stocne:c.stocne};}
+function cenaPosledni(kod){var r=cenyRoky(kod)[0];if(!r)return null;var c=_CENY[String(kod)][r]||{};return {rok:r,vodne:c.vodne,stocne:c.stocne,predana:c.predana,cisteni:c.cisteni};}
 function cenaSoucet(c){return (c.vodne!=null?+c.vodne:0)+(c.stocne!=null?+c.stocne:0);}
 function cenaSouhrn(kod){var c=cenaPosledni(kod);if(!c)return "";return c.rok+": "+kc(cenaSoucet(c))+"/m³";}
 function cenaTooltip(kod){
   var c=cenaPosledni(kod);if(!c)return "";
-  return "<br>💧 "+c.rok+": vodné "+kc(c.vodne)+" · stočné "+kc(c.stocne)+(c.vodne!=null&&c.stocne!=null?" · <b>celkem "+kc(cenaSoucet(c))+"</b>":"")+" <span style='color:#888'>/m³ s DPH</span>";
+  return "<br>💧 "+c.rok+": vodné (VF) "+kc(c.vodne)+" · stočné (VO) "+kc(c.stocne)+(c.vodne!=null&&c.stocne!=null?" · <b>celkem "+kc(cenaSoucet(c))+"</b>":"")+
+    (c.predana!=null?"<br>💧 voda předaná "+kc(c.predana):"")+(c.cisteni!=null?"<br>🚰 převzetí k čištění "+kc(c.cisteni):"")+" <span style='color:#888'>/m³ s DPH</span>";
 }
 function cenyDetailHTML(kod){
   var roky=cenyRoky(kod), c=_CENY[String(kod)]||{};
-  var h=roky.length?"<table style='width:100%;border-collapse:collapse;font-size:.88rem'><tr style='text-align:left;border-bottom:2px solid #ddd'><th style='padding:4px'>Rok</th><th style='padding:4px'>Vodné</th><th style='padding:4px'>Stočné</th><th style='padding:4px'>Celkem</th>"+(_SPRAVCE?"<th></th>":"")+"</tr>"+
-    roky.map(function(r){var x=c[r]||{};return "<tr style='border-bottom:1px solid #eee'><td style='padding:4px'><b>"+r+"</b></td><td style='padding:4px'>"+kc(x.vodne)+"</td><td style='padding:4px'>"+kc(x.stocne)+"</td><td style='padding:4px'>"+kc(cenaSoucet(x))+"</td>"+
+  var mP=roky.some(function(r){return (c[r]||{}).predana!=null;}), mC=roky.some(function(r){return (c[r]||{}).cisteni!=null;});
+  var h=roky.length?"<table style='width:100%;border-collapse:collapse;font-size:.88rem'><tr style='text-align:left;border-bottom:2px solid #ddd'><th style='padding:4px'>Rok</th><th style='padding:4px'>Vodné (VF)</th><th style='padding:4px'>Stočné (VO)</th><th style='padding:4px'>Celkem</th>"+(mP?"<th style='padding:4px'>Voda předaná</th>":"")+(mC?"<th style='padding:4px'>Převzetí k čištění</th>":"")+(_SPRAVCE?"<th></th>":"")+"</tr>"+
+    roky.map(function(r){var x=c[r]||{};return "<tr style='border-bottom:1px solid #eee'><td style='padding:4px'><b>"+r+"</b></td><td style='padding:4px'>"+kc(x.vodne)+"</td><td style='padding:4px'>"+kc(x.stocne)+"</td><td style='padding:4px'>"+kc(cenaSoucet(x))+"</td>"+(mP?"<td style='padding:4px'>"+kc(x.predana)+"</td>":"")+(mC?"<td style='padding:4px'>"+kc(x.cisteni)+"</td>":"")+
       (_SPRAVCE?"<td style='padding:4px;white-space:nowrap'><a href='#' class='cenaEdit' data-r='"+r+"'>✏️</a> <a href='#' class='cenaDel' data-r='"+r+"'>🗑️</a></td>":"")+"</tr>";}).join("")+
-    "</table><div class='hint'>Kč/m³ včetně DPH</div>":"<span class='prazdne'>— zatím nezadáno —</span>";
+    "</table><div class='hint'>Kč/m³ včetně DPH · celkem = vodné + stočné</div>":"<span class='prazdne'>— zatím nezadáno —</span>";
   if(_SPRAVCE)h+="<div style='display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px'>"+
     "<input id='cRok' type='number' min='2000' max='2100' value='"+new Date().getFullYear()+"' style='width:80px' title='Rok' />"+
-    "<input id='cVod' inputmode='decimal' placeholder='vodné Kč/m³' style='width:120px' />"+
-    "<input id='cSto' inputmode='decimal' placeholder='stočné Kč/m³' style='width:120px' />"+
+    "<input id='cVod' inputmode='decimal' placeholder='vodné (VF) Kč/m³' style='width:140px' />"+
+    "<input id='cSto' inputmode='decimal' placeholder='stočné (VO) Kč/m³' style='width:140px' />"+
+    "<input id='cPre' inputmode='decimal' placeholder='voda předaná Kč/m³' style='width:150px' />"+
     "<button class='btn small' id='cUloz'>💾 Uložit rok</button></div><div class='msg' id='cMsg'></div>";
   return h;
 }
@@ -731,6 +735,7 @@ function cenyNavaz(o){
     document.getElementById("cRok").value=r;
     document.getElementById("cVod").value=x.vodne!=null?String(x.vodne).replace(".",","):"";
     document.getElementById("cSto").value=x.stocne!=null?String(x.stocne).replace(".",","):"";
+    document.getElementById("cPre").value=x.predana!=null?String(x.predana).replace(".",","):"";
     document.getElementById("cVod").focus();});});
   Array.prototype.forEach.call(box.querySelectorAll(".cenaDel"),function(a){a.addEventListener("click",function(e){e.preventDefault();
     var r=a.getAttribute("data-r");if(!confirm("Smazat ceny za rok "+r+"?"))return;
@@ -738,12 +743,13 @@ function cenyNavaz(o){
   var b=document.getElementById("cUloz");if(!b)return;
   b.addEventListener("click",function(){
     var msg=document.getElementById("cMsg"), r=String(document.getElementById("cRok").value||"").trim();
-    var v=cenaCislo(document.getElementById("cVod").value), st=cenaCislo(document.getElementById("cSto").value);
+    var v=cenaCislo(document.getElementById("cVod").value), st=cenaCislo(document.getElementById("cSto").value), pr=cenaCislo(document.getElementById("cPre").value);
     if(!/^\d{4}$/.test(r)){msg.textContent="Zadej rok (např. 2026).";return;}
-    if(isNaN(v)||isNaN(st)){msg.textContent="Ceny zadej jako číslo, např. 52,30.";return;}
-    if(v==null&&st==null){msg.textContent="Vyplň aspoň vodné nebo stočné.";return;}
-    var d={upravil:_USER.email,ts:firebase.database.ServerValue.TIMESTAMP};if(v!=null)d.vodne=v;if(st!=null)d.stocne=st;
+    if(isNaN(v)||isNaN(st)||isNaN(pr)){msg.textContent="Ceny zadej jako číslo, např. 52,30.";return;}
+    if(v==null&&st==null&&pr==null){msg.textContent="Vyplň aspoň jednu cenu.";return;}
+    var d={upravil:_USER.email,ts:firebase.database.ServerValue.TIMESTAMP};if(v!=null)d.vodne=v;if(st!=null)d.stocne=st;if(pr!=null)d.predana=pr;
     msg.textContent="Ukládám…";
+    var ex=(_CENY[String(o.kod)]||{})[r]||{};if(ex.cisteni!=null)d.cisteni=ex.cisteni;
     FDB.ref("volby_ceny/"+o.kod+"/"+r).set(d).then(function(){msg.textContent="✅ Uloženo.";})
       .catch(function(e){var m=e&&e.message?e.message:String(e);msg.textContent="⚠️ "+(/permission/i.test(m)?"Firebase to nepovolil – chybí pravidlo pro volby_ceny.":m);});
   });
@@ -766,9 +772,11 @@ function cenyPrehledOtevri(){
     "<select id='cpRok'><option value='posledni'>Poslední zadaný rok</option>"+rs.map(function(r){return "<option value='"+r+"'"+(_CPF.rok===r?" selected":"")+">"+r+"</option>";}).join("")+"</select>"+
     "<label style='font-size:.85rem'><input type='checkbox' id='cpJen'"+(_CPF.jen?" checked":"")+"> jen obce s cenou</label>"+
     "<input id='cpQ' class='search' placeholder='Hledat obec…' style='flex:1;min-width:160px' value='"+esc(_CPF.q)+"'/></div>"+
+    (_SPRAVCE?"<div style='margin:6px 0'><button class='btn ghost small' id='cpImport'>⬆️ Nahrát ceny z Excelu</button> <span class='hint'>tabulka VF/VO (např. CENY2026.xlsx)</span></div>":"")+
     "<div id='cpTab' style='overflow:auto'></div><p class='hint'>Kč/m³ včetně DPH. Klikni na záhlaví sloupce pro seřazení, na obec pro detail."+(_SPRAVCE?" Ceny zadáš v detailu obce (sekce 💧 Ceny vody).":"")+"</p></div>";
   document.getElementById("modal").classList.add("show");
   document.getElementById("cpRok").addEventListener("change",function(){_CPF.rok=this.value;cenyPrehledRender();});
+  if(document.getElementById("cpImport"))document.getElementById("cpImport").addEventListener("click",function(){document.getElementById("cenyFile").click();});
   document.getElementById("cpJen").addEventListener("change",function(){_CPF.jen=this.checked;cenyPrehledRender();});
   document.getElementById("cpQ").addEventListener("input",function(){_CPF.q=this.value;cenyPrehledRender();});
   cenyPrehledRender();
@@ -776,7 +784,7 @@ function cenyPrehledOtevri(){
 function cenyPrehledRender(){
   var q=fold((_CPF.q||"").trim());
   var rows=OBCE.filter(function(o){return !q||fold(o.nazev).indexOf(q)>=0;}).map(function(o){
-    var c=_CPF.rok==="posledni"?cenaPosledni(o.kod):(function(){var x=(_CENY[String(o.kod)]||{})[_CPF.rok];return x?{rok:_CPF.rok,vodne:x.vodne,stocne:x.stocne}:null;})();
+    var c=_CPF.rok==="posledni"?cenaPosledni(o.kod):(function(){var x=(_CENY[String(o.kod)]||{})[_CPF.rok];return x?{rok:_CPF.rok,vodne:x.vodne,stocne:x.stocne,predana:x.predana,cisteni:x.cisteni}:null;})();
     return {o:o,c:c,celkem:c?cenaSoucet(c):null};
   }).filter(function(r){return !_CPF.jen||r.c;});
   var S=_CPF.sort,D=_CPF.dir;
@@ -787,21 +795,108 @@ function cenyPrehledRender(){
     return D*(va-vb);
   });
   var sz=rows.filter(function(r){return r.c&&r.c.vodne!=null&&r.c.stocne!=null;});
+  var mP=rows.some(function(r){return r.c&&r.c.predana!=null;}), mC=rows.some(function(r){return r.c&&r.c.cisteni!=null;});
   var prum=sz.length?sz.reduce(function(a,r){return a+r.celkem;},0)/sz.length:null;
   function th(k,t){return "<th data-s='"+k+"' style='padding:5px;cursor:pointer;white-space:nowrap'>"+t+(S===k?(D>0?" ▲":" ▼"):"")+"</th>";}
   var h="<table style='width:100%;border-collapse:collapse;font-size:.88rem'><tr style='text-align:left;border-bottom:2px solid #ddd'>"+
-    th("nazev","Obec")+"<th style='padding:5px'>Provoz</th>"+(_CPF.rok==="posledni"?"<th style='padding:5px'>Rok</th>":"")+th("vodne","Vodné")+th("stocne","Stočné")+th("celkem","Celkem")+"</tr>"+
+    th("nazev","Obec")+"<th style='padding:5px'>Provoz</th>"+(_CPF.rok==="posledni"?"<th style='padding:5px'>Rok</th>":"")+th("vodne","Vodné (VF)")+th("stocne","Stočné (VO)")+th("celkem","Celkem")+(mP?th("predana","Předaná"):"")+(mC?th("cisteni","K čištění"):"")+"</tr>"+
     rows.map(function(r){var o=r.o,c=r.c;
       return "<tr style='border-bottom:1px solid #eee'><td style='padding:5px'><a href='#' class='cpObec' data-kod='"+esc(String(o.kod))+"'>"+esc(o.nazev)+"</a></td>"+
         "<td style='padding:5px;color:#667;font-size:.8rem'>"+(kanalJinak(o)?"vodovod: "+esc(vodovodText(o))+"<br>kanalizace: "+esc(kanalText(o)):esc(o.provozovano?vodovodText(o):(o.provozovatel||"neprovozováno")))+"</td>"+
         (_CPF.rok==="posledni"?"<td style='padding:5px'>"+(c?c.rok:"")+"</td>":"")+
-        "<td style='padding:5px'>"+(c?kc(c.vodne):"—")+"</td><td style='padding:5px'>"+(c?kc(c.stocne):"—")+"</td><td style='padding:5px'><b>"+(c?kc(r.celkem):"—")+"</b></td></tr>";}).join("")+
+        "<td style='padding:5px'>"+(c?kc(c.vodne):"—")+"</td><td style='padding:5px'>"+(c?kc(c.stocne):"—")+"</td><td style='padding:5px'><b>"+(c?kc(r.celkem):"—")+"</b></td>"+(mP?"<td style='padding:5px'>"+(c&&c.predana!=null?kc(c.predana):"")+"</td>":"")+(mC?"<td style='padding:5px'>"+(c&&c.cisteni!=null?kc(c.cisteni):"")+"</td>":"")+"</tr>";}).join("")+
     "</table>"+(prum!=null?"<p class='msg'>Průměr (vodné + stočné) z "+sz.length+" obcí: <b>"+kc(prum)+"</b>/m³</p>":"");
   var t=document.getElementById("cpTab");t.innerHTML=h;
   Array.prototype.forEach.call(t.querySelectorAll("th[data-s]"),function(x){x.addEventListener("click",function(){var k=x.getAttribute("data-s");if(_CPF.sort===k)_CPF.dir=-_CPF.dir;else{_CPF.sort=k;_CPF.dir=k==="nazev"?1:-1;}cenyPrehledRender();});});
   Array.prototype.forEach.call(t.querySelectorAll(".cpObec"),function(a){a.addEventListener("click",function(e){e.preventDefault();var o=OBCE.filter(function(x){return String(x.kod)===a.getAttribute("data-kod");})[0];if(o)openModal(o);});});
 }
 document.getElementById("cenyBtn").addEventListener("click",cenyPrehledOtevri);
+
+/* ---- import cen z Excelu (tabulka VHOS: kód VF…/VO…, lokalita, druh, sloupce let bez DPH a s DPH) ----
+   druh: vf = vodné, vo / vo,vc = stočné, voda před. = voda předaná, přev.k čištění = převzetí k čištění.
+   Bere se blok "s DPH". Lokalita se páruje na obec podle názvu (zkratky "n Sv", "Mor." …). */
+var _CI=null;
+function ciTok(x){return fold(String(x||"")).split(/[\s.\-]+/).filter(Boolean);}
+function ciMatch(n){
+  var f=fold(String(n||"").trim()), t=ciTok(n);
+  var ex=OBCE.filter(function(o){return fold(o.nazev)===f;});if(ex.length)return {o:ex,c:[]};
+  var m=OBCE.filter(function(o){var u=ciTok(o.nazev);return u.length===t.length&&u.every(function(a,i){return a.indexOf(t[i])===0;});});
+  if(m.length)return {o:m,c:[]};
+  var c=t.length?OBCE.filter(function(o){var u=ciTok(o.nazev);return u[0]&&u[0].indexOf(t[0])===0;}):[];
+  return {o:[],c:c};
+}
+function ciDruh(d){d=fold(String(d||""));if(/pred/.test(d))return "predana";if(/prev|cist/.test(d))return "cisteni";if(/^vf/.test(d))return "vodne";if(/^vo/.test(d))return "stocne";return null;}
+var CI_POPIS={vodne:"vodné (VF)",stocne:"stočné (VO)",predana:"voda předaná",cisteni:"převzetí k čištění"};
+document.getElementById("cenyFile").addEventListener("change",function(){
+  var f=this.files&&this.files[0];this.value="";if(!f)return;
+  Promise.all([loadXLSX(),f.arrayBuffer()]).then(function(x){var buf=x[1];
+    var wb=XLSX.read(new Uint8Array(buf),{type:"array"}), ws=wb.Sheets[wb.SheetNames[0]];
+    var rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+    // radek s "s DPH" urcuje, kde zacina blok s DPH; radek pod nim ma roky
+    var hi=-1,sCol=-1;
+    for(var i=0;i<Math.min(rows.length,10)&&hi<0;i++)for(var j=0;j<rows[i].length;j++)if(fold(String(rows[i][j]||"")).replace(/\s/g,"")==="sdph"){hi=i;sCol=j;break;}
+    if(hi<0)throw new Error("V tabulce jsem nenašel záhlaví „s DPH“.");
+    var hr=rows[hi+1]||[], roky=[];
+    for(var k=sCol;k<hr.length;k++){var m=String(hr[k]==null?"":hr[k]).match(/^(\d{4})/);if(m)roky.push({rok:m[1],col:k,txt:String(hr[k])});}
+    // u roku se 2 sloupci (např. 2020 15 % / 10 %) ber ten pozdější
+    var posl={};roky.forEach(function(r){posl[r.rok]=r;});
+    var rs=Object.keys(posl).sort().reverse();
+    if(!rs.length)throw new Error("Nenašel jsem sloupce s roky.");
+    var data=[];
+    for(var r=hi+2;r<rows.length;r++){var w=rows[r]||[];
+      if(!w[0]||!/^V[FO]/i.test(String(w[0])))continue;
+      data.push({kod:String(w[0]),lok:String(w[1]||""),druh:String(w[2]||""),pole:ciDruh(w[2]),row:w,m:ciMatch(w[1])});}
+    _CI={rs:rs,posl:posl,data:data,rok:rs[0]};
+    ciRender();
+  }).catch(function(e){alert("⚠️ "+(e&&e.message?e.message:e));});
+});
+function ciRender(){
+  var C=_CI, col=C.posl[C.rok].col, mb=document.getElementById("mbody");
+  var cis=function(v){if(v==null||v==="")return null;var n=typeof v==="number"?v:Number(String(v).replace(",","."));return isFinite(n)&&n>0?Math.round(n*100)/100:null;};
+  var h="<h2>⬆️ Import cen z Excelu</h2>"+
+    "<div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap'>Rok: <select id='ciRok'>"+C.rs.map(function(r){return "<option"+(r===C.rok?" selected":"")+">"+r+"</option>";}).join("")+"</select>"+
+    "<span class='hint' style='margin:0'>ceny s DPH (sloupec „"+esc(C.posl[C.rok].txt)+"“)</span></div>"+
+    "<p class='msg'>Zaškrtnuté řádky se uloží k vybrané obci. Řádky bez obce se přeskočí – obec můžeš vybrat ručně. Existující hodnoty se přepíšou jen u zaškrtnutých.</p>"+
+    "<div style='overflow:auto'><table style='width:100%;border-collapse:collapse;font-size:.84rem'><tr style='text-align:left;border-bottom:2px solid #ddd'>"+
+    "<th style='padding:4px'></th><th style='padding:4px'>Lokalita</th><th style='padding:4px'>Druh</th><th style='padding:4px'>Cena</th><th style='padding:4px'>Obec</th><th style='padding:4px'>Teď v aplikaci</th></tr>";
+  C.data.forEach(function(d,i){
+    d.cena=cis(d.row[col]);
+    var opts=d.m.o.length===1?d.m.o:d.m.o.concat(d.m.c);
+    var vyb=d.vyber!==undefined?d.vyber:(d.m.o.length===1?String(d.m.o[0].kod):"");
+    d.vyber=vyb;
+    var cur=vyb&&d.pole?((_CENY[vyb]||{})[C.rok]||{})[d.pole]:null;
+    var ok=!!(vyb&&d.pole&&d.cena!=null);
+    var chk=d.chk!==undefined?d.chk:(ok&&(cur==null||cur!==d.cena));
+    d.chk=chk&&ok;
+    h+="<tr style='border-bottom:1px solid #eee"+(ok?"":";color:#aaa")+"'><td style='padding:4px'><input type='checkbox' class='ciChk' data-i='"+i+"'"+(d.chk?" checked":"")+(ok?"":" disabled")+"></td>"+
+      "<td style='padding:4px'>"+esc(d.lok)+" <span style='color:#aaa;font-size:.75rem'>"+esc(d.kod)+"</span></td>"+
+      "<td style='padding:4px'>"+(d.pole?CI_POPIS[d.pole]:"<i>neznámý: "+esc(d.druh)+"</i>")+"</td>"+
+      "<td style='padding:4px;white-space:nowrap'>"+(d.cena!=null?kc(d.cena):"—")+"</td>"+
+      "<td style='padding:4px'><select class='ciObec' data-i='"+i+"'><option value=''>— přeskočit —</option>"+
+        (opts.length?opts:OBCE).slice().sort(function(a,b){return a.nazev.localeCompare(b.nazev,"cs");}).map(function(o){return "<option value='"+esc(String(o.kod))+"'"+(String(o.kod)===vyb?" selected":"")+">"+esc(o.nazev)+"</option>";}).join("")+
+        (opts.length?"<option value='*'>jiná obec…</option>":"")+"</select></td>"+
+      "<td style='padding:4px;white-space:nowrap'>"+(cur!=null?(cur===d.cena?"<span style='color:#2f6b3c'>✔ stejné</span>":kc(cur)):"")+"</td></tr>";
+  });
+  var n=C.data.filter(function(d){return d.chk;}).length;
+  h+="</table></div><div class='mtools'><button class='btn' id='ciUloz'>💾 Uložit zaškrtnuté ("+n+")</button><button class='btn ghost' id='ciZpet'>← Zpět na ceny</button></div><div class='msg' id='ciMsg'></div>";
+  mb.innerHTML=h;document.getElementById("modal").classList.add("show");
+  document.getElementById("ciRok").addEventListener("change",function(){C.rok=this.value;C.data.forEach(function(d){delete d.chk;});ciRender();});
+  Array.prototype.forEach.call(mb.querySelectorAll(".ciChk"),function(c){c.addEventListener("change",function(){C.data[+c.getAttribute("data-i")].chk=c.checked;
+    document.getElementById("ciUloz").textContent="💾 Uložit zaškrtnuté ("+C.data.filter(function(d){return d.chk;}).length+")";});});
+  Array.prototype.forEach.call(mb.querySelectorAll(".ciObec"),function(sel){sel.addEventListener("change",function(){var d=C.data[+sel.getAttribute("data-i")];
+    if(sel.value==="*"){d.m={o:[],c:OBCE.slice()};d.vyber="";}else{d.vyber=sel.value;}delete d.chk;ciRender();});});
+  document.getElementById("ciZpet").addEventListener("click",cenyPrehledOtevri);
+  document.getElementById("ciUloz").addEventListener("click",function(){
+    var upd={},n=0,kl={},msg=document.getElementById("ciMsg");
+    C.data.forEach(function(d){if(!d.chk)return;var p=d.vyber+"/"+C.rok;
+      if(kl[p+"/"+d.pole]){msg.textContent="⚠️ "+CI_POPIS[d.pole]+" je u jedné obce zaškrtnuté dvakrát ("+d.lok+"). Odškrtni jeden řádek.";n=-1;}
+      kl[p+"/"+d.pole]=1;upd[p+"/"+d.pole]=d.cena;upd[p+"/upravil"]=_USER.email;upd[p+"/ts"]=firebase.database.ServerValue.TIMESTAMP;if(n>=0)n++;});
+    if(n<0)return;if(!n){msg.textContent="Nic není zaškrtnuté.";return;}
+    msg.textContent="Ukládám "+n+"…";
+    FDB.ref("volby_ceny").update(upd).then(function(){msg.textContent="✅ Uloženo "+n+" cen za rok "+C.rok+".";C.data.forEach(function(d){delete d.chk;});setTimeout(ciRender,400);})
+      .catch(function(e){var m=e&&e.message?e.message:String(e);msg.textContent="⚠️ "+(/permission/i.test(m)?"Firebase to nepovolil – chybí pravidlo pro volby_ceny.":m);});
+  });
+}
 
 /* ---------- STAROSTOVÉ Z WIKIDAT (jen správce) ----------
    Starostu volí zastupitelstvo, ve volebních datech není. Wikidata mají u obcí
@@ -4311,7 +4406,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v68";
+var VERZE="2026-11-10 · v70";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
