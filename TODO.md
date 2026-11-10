@@ -1,6 +1,11 @@
 # Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
+- **Ceny – import z Excelu** (v70): v přehledu 💧 Ceny vody tlačítko ⬆️ Nahrát ceny
+  z Excelu (jen správce). Tabulka VHOS (kód VF…/VO…, lokalita, druh, roky bez DPH a
+  s DPH) – bere blok s DPH, vybraný rok; druh vf=vodné, vo=stočné, voda před.=
+  `predana`, přev.k čištění=`cisteni`. Lokality páruje na obce podle názvu se
+  zkratkami, náhled se zaškrtnutím. Předaná a čištění se ukazují jen kde jsou.
 - **Vodovod × kanalizace** (v66): pole `kanal` ("" = stejně jako vodovod, `vhos`,
   `jiny`, `zadna`) + `provozovatel_kanal`. Detail (💧 Vodovod / 🚰 Kanalizace),
   štítky „jen vodovod“ / „kanalizace VHOS“, tooltip, přehled cen. Radiměř a Hradec
