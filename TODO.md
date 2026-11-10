@@ -1,6 +1,11 @@
 # Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
+- **Poznámky k obcím** (v54): v detailu obce sekce Poznámky – 🔒 soukromé
+  (`volby_poznamky_soukrome/<email>/<kod>/<id>`, vidí jen autor) a 👥 veřejné
+  (`volby_poznamky_verejne/<kod>/<id>`, vidí všichni, mění autor + správce).
+  Dole tlačítko 📝 Poznámky = přehled všech s filtrem a hledáním. Staré pole
+  `poznamky` zůstává jako „Společná poznámka k obci“.
 - **Kdo je online** (v53): každý přihlášený zapisuje `volby_presence/<email>/c/<spojeni>`
   (onDisconnect maže, `ts` = naposledy). Správce vidí vpravo nahoře 🟢 N online a seznam.
   Pravidlo: čte jen admin / `volby_spravci`, zapisuje každý jen svůj klíč.

@@ -282,6 +282,7 @@ mark{background:#fde68a;color:#5b4708;padding:0 2px;border-radius:3px;}
 <button class="btn ghost small" id="vysledkyBtn">📊 Výsledky voleb</button>
 <button class="btn ghost small" id="tiskBtn">🖨️ Tisk kandidátek</button>
 <button class="btn ghost small" id="acBtn">💧 Porovnat s AquaControl</button>
+<button class="btn ghost small" id="pzPrehledBtn">📝 Poznámky</button>
 <input type="file" id="vxFile" accept=".xml,.zip,application/xml,text/xml" style="display:none" />
 <input type="file" id="acFile" accept=".xlsx,.xlsm,.xlsb,.xls,.csv,.txt,.tsv" style="display:none" />
 <input type="file" id="importFile" accept=".json,application/json" multiple style="display:none" />
@@ -517,14 +518,151 @@ function renderOnline(){
 }
 document.getElementById("onlineBtn").addEventListener("click",function(){renderOnline();document.getElementById("modal").classList.add("show");});
 
+/* ---------- POZNÁMKY K OBCÍM: soukromé (vidí jen autor) a veřejné (vidí všichni) ----------
+   volby_poznamky_verejne/<kod>/<id> = {text, autor, autor_k, ts, upraveno}
+   volby_poznamky_soukrome/<emailKey>/<kod>/<id> = {text, ts, upraveno} */
+var _PZ={v:{},s:{},refs:[],edit:null};
+function startPoznamky(user){
+  stopPoznamky();
+  var rv=FDB.ref("volby_poznamky_verejne"), rs=FDB.ref("volby_poznamky_soukrome/"+leKey(user.email));
+  rv.on("value",function(x){_PZ.v=x.val()||{};pzObnov();},function(){_PZ.v={};});
+  rs.on("value",function(x){_PZ.s=x.val()||{};pzObnov();},function(){_PZ.s={};});
+  _PZ.refs=[rv,rs];
+}
+function stopPoznamky(){_PZ.refs.forEach(function(r){r.off();});_PZ={v:{},s:{},refs:[],edit:null};}
+// vsechny poznamky obce (nebo vsech obci), serazene od nejnovejsi
+function pzObce(kod){
+  var out=[];
+  function pridej(kd){
+    var v=_PZ.v[kd]||{}, s=_PZ.s[kd]||{};
+    Object.keys(v).forEach(function(id){var n=v[id]||{};out.push({kod:kd,id:id,ver:true,text:n.text||"",autor:n.autor||"",autor_k:n.autor_k||"",ts:n.ts||0,upraveno:n.upraveno||0});});
+    Object.keys(s).forEach(function(id){var n=s[id]||{};out.push({kod:kd,id:id,ver:false,text:n.text||"",autor:_USER?_USER.email:"",autor_k:_USER?leKey(_USER.email):"",ts:n.ts||0,upraveno:n.upraveno||0});});
+  }
+  if(kod!=null)pridej(String(kod));
+  else{var ks={};Object.keys(_PZ.v).concat(Object.keys(_PZ.s)).forEach(function(k){ks[k]=1;});Object.keys(ks).forEach(pridej);}
+  return out.sort(function(a,b){return b.ts-a.ts;});
+}
+function pzMuze(n){return !n.ver||(_USER&&n.autor_k===leKey(_USER.email))||_SPRAVCE;}
+function pzDatum(ts){if(!ts)return "";var d=new Date(ts);return d.getDate()+". "+(d.getMonth()+1)+". "+d.getFullYear()+" "+d.getHours()+":"+String(d.getMinutes()).padStart(2,"0");}
+function pzItemHTML(n,sObci){
+  var o=sObci?OBCE.filter(function(x){return String(x.kod)===String(n.kod);})[0]:null;
+  return "<div class='pzitem' style='border:1px solid "+(n.ver?"#cfe3d3":"#e6dcc0")+";background:"+(n.ver?"#f4faf5":"#fffaf0")+";border-radius:10px;padding:8px 10px;margin:6px 0'>"+
+    "<div style='display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:.78rem;color:#667'>"+
+    "<span>"+(n.ver?"👥 Veřejná":"🔒 Soukromá")+(sObci?" · <a href='#' class='pzobec' data-kod='"+esc(String(n.kod))+"'>"+esc(o?o.nazev:String(n.kod))+"</a>":"")+
+    " · "+esc(n.ver?n.autor:"jen pro tebe")+" · "+pzDatum(n.ts)+(n.upraveno?" (upraveno)":"")+"</span>"+
+    (pzMuze(n)?"<span><a href='#' class='pzedit' data-kod='"+esc(String(n.kod))+"' data-id='"+esc(n.id)+"' data-v='"+(n.ver?1:0)+"'>✏️</a> <a href='#' class='pzdel' data-kod='"+esc(String(n.kod))+"' data-id='"+esc(n.id)+"' data-v='"+(n.ver?1:0)+"' style='margin-left:6px'>🗑️</a></span>":"")+
+    "</div><div class='pozn' style='margin-top:4px'>"+(_Q?hl(n.text,_Q):esc(n.text))+"</div></div>";
+}
+function pzListHTML(kod){
+  var a=pzObce(kod);
+  return a.length?a.map(function(n){return pzItemHTML(n,false);}).join(""):"<span class='prazdne'>— zatím žádné —</span>";
+}
+function pzFormHTML(){
+  return "<div id='pzForm' style='margin-top:8px'><div id='pzFormHead' style='font-size:.8rem;color:#667;margin-bottom:4px'>Nová poznámka</div>"+
+    "<textarea id='pzText' rows='3' style='width:100%' placeholder='Napiš poznámku…'></textarea>"+
+    "<div style='display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px'>"+
+    "<label style='font-size:.85rem'><input type='radio' name='pzVid' value='s' checked> 🔒 Soukromá (jen já)</label>"+
+    "<label style='font-size:.85rem'><input type='radio' name='pzVid' value='v'> 👥 Veřejná (všichni)</label>"+
+    "<button class='btn small' id='pzUlozit'>💾 Uložit</button><button class='btn ghost small hidden' id='pzZrusit'>Zrušit úpravu</button></div>"+
+    "<div class='msg' id='pzMsg'></div></div>";
+}
+function pzRef(ver,kod,id){return FDB.ref((ver?"volby_poznamky_verejne/":"volby_poznamky_soukrome/"+leKey(_USER.email)+"/")+kod+(id?"/"+id:""));}
+function pzNajdi(kod,id,ver){var src=ver?_PZ.v:_PZ.s;return src[kod]&&src[kod][id];}
+function pzSmazat(kod,id,ver,hotovo){
+  if(!confirm("Smazat poznámku?"))return;
+  pzRef(ver,kod,id).remove().then(hotovo||function(){}).catch(function(e){alert("Smazání se nepovedlo: "+(e&&e.message?e.message:e));});
+}
+function pzNavazList(root,poKliku){
+  Array.prototype.forEach.call(root.querySelectorAll(".pzdel"),function(a){a.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();
+    pzSmazat(a.getAttribute("data-kod"),a.getAttribute("data-id"),a.getAttribute("data-v")==="1");});});
+  Array.prototype.forEach.call(root.querySelectorAll(".pzedit"),function(a){a.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();
+    poKliku(a.getAttribute("data-kod"),a.getAttribute("data-id"),a.getAttribute("data-v")==="1");});});
+  Array.prototype.forEach.call(root.querySelectorAll(".pzobec"),function(a){a.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();
+    var o=OBCE.filter(function(x){return String(x.kod)===a.getAttribute("data-kod");})[0];if(o)openModal(o);});});
+}
+// detail obce: formular + seznam
+function pzNavaz(o){
+  if(!document.getElementById("pzForm"))return;
+  _PZ.edit=null;
+  var t=document.getElementById("pzText"), msg=document.getElementById("pzMsg");
+  function reset(){_PZ.edit=null;t.value="";document.getElementById("pzFormHead").textContent="Nová poznámka";document.getElementById("pzZrusit").classList.add("hidden");
+    Array.prototype.forEach.call(document.querySelectorAll("input[name=pzVid]"),function(r){r.disabled=false;});}
+  function upravit(kod,id,ver){
+    var n=pzNajdi(kod,id,ver);if(!n)return;
+    _PZ.edit={kod:kod,id:id,ver:ver};t.value=n.text||"";
+    document.getElementById("pzFormHead").textContent="Úprava "+(ver?"veřejné":"soukromé")+" poznámky";
+    document.getElementById("pzZrusit").classList.remove("hidden");
+    Array.prototype.forEach.call(document.querySelectorAll("input[name=pzVid]"),function(r){r.checked=(r.value==="v")===ver;r.disabled=true;});
+    t.focus();
+  }
+  _PZ.navazDetail=function(){pzNavazList(document.getElementById("pzList"),upravit);};
+  _PZ.navazDetail();
+  document.getElementById("pzZrusit").addEventListener("click",reset);
+  document.getElementById("pzUlozit").addEventListener("click",function(){
+    var text=(t.value||"").trim();if(!text){msg.textContent="Poznámka je prázdná.";return;}
+    if(text.length>5000){msg.textContent="Poznámka je moc dlouhá (max 5000 znaků).";return;}
+    var TS=firebase.database.ServerValue.TIMESTAMP, pr;
+    msg.textContent="Ukládám…";
+    if(_PZ.edit){
+      pr=pzRef(_PZ.edit.ver,_PZ.edit.kod,_PZ.edit.id).update({text:text,upraveno:TS});
+    }else{
+      var ver=(document.querySelector("input[name=pzVid]:checked")||{}).value==="v";
+      var d={text:text,ts:TS};
+      if(ver){d.autor=_USER.email;d.autor_k=leKey(_USER.email);}
+      pr=pzRef(ver,String(o.kod)).push(d);
+    }
+    pr.then(function(){msg.textContent="✅ Uloženo.";reset();}).catch(function(e){
+      var m=e&&e.message?e.message:String(e);
+      msg.textContent="⚠️ "+(/permission/i.test(m)?"Firebase to nepovolil – chybí pravidla pro poznámky.":m);
+    });
+  });
+}
+// po zmene dat prekreslit jen seznam (formular s rozepsanym textem zustane)
+function pzObnov(){
+  var el=document.getElementById("pzList");
+  if(el&&_CUR&&document.getElementById("modal").classList.contains("show")){el.innerHTML=pzListHTML(_CUR.kod);if(_PZ.navazDetail)_PZ.navazDetail();}
+  if(document.getElementById("pzPrehled"))pzPrehledRender();
+}
+// prehled vsech poznamek
+var _PZF={f:"vse",q:""};
+function pzPrehledOtevri(){
+  document.getElementById("mbody").innerHTML="<h2>📝 Poznámky</h2><div id='pzPrehled'>"+
+    "<div class='chips' id='pzFiltr' style='margin:8px 0'></div>"+
+    "<input id='pzHledat' class='search' placeholder='Hledat v poznámkách nebo obci…' style='margin-bottom:8px' value='"+esc(_PZF.q)+"'/>"+
+    "<div id='pzPrehledList'></div>"+
+    "<p class='hint'>Novou poznámku přidáš v detailu obce (sekce Poznámky). 🔒 soukromé vidíš jen ty, 👥 veřejné všichni.</p></div>";
+  document.getElementById("modal").classList.add("show");
+  document.getElementById("pzHledat").addEventListener("input",function(){_PZF.q=this.value;pzPrehledRender();});
+  pzPrehledRender();
+}
+function pzPrehledRender(){
+  var vse=pzObce(null), fl=document.getElementById("pzFiltr");
+  var poc={vse:vse.length,moje:vse.filter(function(n){return !n.ver;}).length,ver:vse.filter(function(n){return n.ver;}).length};
+  var F=[["vse","Vše"],["moje","🔒 Moje soukromé"],["ver","👥 Veřejné"]];
+  fl.innerHTML=F.map(function(f){return "<button class='chip"+(_PZF.f===f[0]?" on":"")+"' data-f='"+f[0]+"'>"+f[1]+" ("+poc[f[0]]+")</button>";}).join("");
+  Array.prototype.forEach.call(fl.querySelectorAll("button"),function(b){b.addEventListener("click",function(){_PZF.f=b.getAttribute("data-f");pzPrehledRender();});});
+  var q=fold((_PZF.q||"").trim());
+  var a=vse.filter(function(n){
+    if(_PZF.f==="moje"&&n.ver)return false; if(_PZF.f==="ver"&&!n.ver)return false;
+    if(!q)return true;
+    var o=OBCE.filter(function(x){return String(x.kod)===String(n.kod);})[0];
+    var hay=fold(n.text+" "+n.autor+" "+(o?o.nazev:""));
+    return q.split(/\s+/).every(function(w){return hay.indexOf(w)>=0;});
+  });
+  var list=document.getElementById("pzPrehledList");
+  list.innerHTML=a.length?a.map(function(n){return pzItemHTML(n,true);}).join(""):"<span class='prazdne'>— nic —</span>";
+  pzNavazList(list,function(kod){var o=OBCE.filter(function(x){return String(x.kod)===kod;})[0];if(o)openModal(o);});
+}
+document.getElementById("pzPrehledBtn").addEventListener("click",pzPrehledOtevri);
+
 if(AUTH.isSignInWithEmailLink(window.location.href)){
   var em=localStorage.getItem("volby_email")||window.prompt("Potvrď svůj e-mail pro přihlášení:");
   if(em){AUTH.signInWithEmailLink(em,window.location.href).then(function(){localStorage.removeItem("volby_email");history.replaceState(null,"",location.pathname);}).catch(function(e){alert("Přihlášení selhalo: "+(e&&e.message?e.message:e));});}
 }
 AUTH.onAuthStateChanged(function(user){
-  if(!user){_USER=null;stopPresence();showLogin();return;}
+  if(!user){_USER=null;stopPresence();stopPoznamky();showLogin();return;}
   FDB.ref("florian_login_email/"+leKey(user.email)).get().then(function(s){
-    if(s.exists()){_USER=user;document.getElementById("who").textContent=user.email;showApp();loadData();loadSvazky();loadZam();checkSpravce(user);startPresence(user);}
+    if(s.exists()){_USER=user;document.getElementById("who").textContent=user.email;showApp();loadData();loadSvazky();loadZam();checkSpravce(user);startPresence(user);startPoznamky(user);}
     else{showLogin("E-mail <b>"+esc(user.email)+"</b> zatím nemá přístup. Ozvi se Petru Kobelkovi, ať tě přidá (stejný seznam jako Florián).");AUTH.signOut();}
   }).catch(function(){showLogin("Nepodařilo se ověřit přístup, zkus to znovu.");});
 });
@@ -1987,7 +2125,12 @@ function renderModal(){
     body+=det("Volební programy",secPencil("programy"),programyHTML(o),false);
     if(o.rada&&o.rada.length) body+=det("Městská rada ("+o.rada.length+")","",listUL(o.rada),false);
     if(o.terminy&&o.terminy.length) body+=det("Termíny zastupitelstev","",listCal(o.terminy,"Zastupitelstvo "+o.nazev,o.nazev),false);
-    body+=det("Poznámky",secPencil("poznamky"),(o.poznamky?"<div class='r'><span class='pozn'>"+hl(o.poznamky,_Q)+"</span></div>":"<span class='prazdne'>— žádné (ťukni ✏️) —</span>"),false);
+    var pzN=pzObce(o.kod).length;
+    body+=det("Poznámky"+(pzN?" ("+pzN+")":""),"",
+      "<div id='pzList'>"+pzListHTML(o.kod)+"</div>"+pzFormHTML()+
+      "<div class='hint' style='margin-top:10px'>Společná poznámka k obci (starší pole) <span class='secedit' data-sec='poznamky' title='Upravit'>✏️</span></div>"+
+      (o.poznamky?"<div class='r'><span class='pozn'>"+hl(o.poznamky,_Q)+"</span></div>":"<span class='prazdne'>— žádná —</span>"),
+      pzN>0||!!o.poznamky);
     body+=det("Návštěvy"+((o.navstevy&&o.navstevy.length)?" ("+o.navstevy.length+")":""),secPencil("navstevy"),((o.navstevy&&o.navstevy.length)?listCal(o.navstevy,"Návštěva "+o.nazev,o.nazev):"<span class='prazdne'>— žádné (ťukni ✏️) —</span>"),false);
   }
   // nástroje
@@ -2008,7 +2151,7 @@ function renderModal(){
   document.getElementById("mbody").innerHTML=body;
   Array.prototype.forEach.call(document.querySelectorAll("#mbody .cal"),function(el){el.addEventListener("click",function(e){e.stopPropagation();icsFromEl(el);});});
   Array.prototype.forEach.call(document.querySelectorAll("#mbody .secedit"),function(el){el.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();var s=el.getAttribute("data-sec");if(s==="poznamky")openPoznEditor();else if(s==="navstevy")openNavEditor();else if(s==="programy")openProgramEditor();else if(s==="vysledky")openVysledkyEditor("2022");else if(s==="vysledky26")openVysledkyEditor("2026");});});
-  if(!_EDIT)pgNavazSoubory(o);
+  if(!_EDIT){pgNavazSoubory(o);pzNavaz(o);}
   // Okno se zobrazuje až po renderModal(), takže scrollovat teď by bylo do
   // skrytého prvku a neudělalo by to nic – proto až v dalším snímku.
   if(!_EDIT&&_Q)pozdeji(zamerZvyrazneni);
@@ -3768,7 +3911,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-10 · v53";
+var VERZE="2026-11-10 · v54";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>
