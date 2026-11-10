@@ -1,6 +1,10 @@
 # Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
+- **Mapa** (v58): nad mapou hledání s našeptávačem (obec, starosta, místostarosta);
+  klik/Enter obec zvýrazní. Horní hledání v režimu mapy plní totéž. Tooltip ukazuje
+  starostu (nový 2026–2030 má přednost). U obce nová pole `starosta_2026`,
+  `mistostarosta_2026` (+ `_tel`, `_email`) – sekce Vedení obce 2026–2030.
 - **Poznámky k obcím** (v54): v detailu obce sekce Poznámky – 🔒 soukromé
   (`volby_poznamky_soukrome/<email>/<kod>/<id>`, vidí jen autor) a 👥 veřejné
   (`volby_poznamky_verejne/<kod>/<id>`, vidí všichni, mění autor + správce).
