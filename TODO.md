@@ -1,6 +1,11 @@
 # Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
+- **Velké Opatovice** (v61, okres Blansko, kód 582646, neprovozováno): hranice v
+  `hranice.json` (ČÚZK INSPIRE přes siwekm/czech-geojson), záznam ve `volby_obce`
+  založí správce automaticky (`EXTRA_OBCE`). Import kandidátek/výsledků je dál jen
+  za okres Svitavy. Mapa má vlastní popisky obcí od zoomu 11. 📝 Poznámky jsou
+  nahoře vedle Seznam / Mapa.
 - **Mapa** (v58): nad mapou hledání s našeptávačem (obec, starosta, místostarosta);
   klik/Enter obec zvýrazní. Horní hledání v režimu mapy plní totéž. Tooltip ukazuje
   starostu (nový 2026–2030 má přednost). U obce nová pole `starosta_2026`,
