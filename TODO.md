@@ -1,6 +1,10 @@
 # Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
+- **Ceny vody** (v65): `volby_ceny/<kod>/<rok> = {vodne, stocne}` Kč/m³ s DPH.
+  Zadává správce v detailu obce (sekce 💧 Ceny vody), vidí všichni: tooltip v mapě
+  (poslední rok), přehled 💧 Ceny vody nahoře (rok, řazení, průměr).
+  Pravidlo: čtení se seznamem přístupů, zápis jen admin / `volby_spravci`.
 - **Provozovatel vodovodu** (v63): u neprovozovaných obcí pole `provozovatel`
   (úprava ✏️ s našeptávačem dosavadních hodnot), ukazuje se ve štítku, detailu a
   v tooltipu mapy („Provozuje: …“).
