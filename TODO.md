@@ -1,6 +1,10 @@
 # Kde jsme skončili (12. 10. 2026, verze v45)
 
 ## Hotové a nasazené v `main`
+- **Vedení zůstává** (v74): v detailu obce u prázdného starosty/místostarosty 2026–2030
+  tlačítko „↪ zůstává …“ (převezme jméno, tel., e-mail z 2022–26, jen prázdná pole,
+  ukáže, zda byl zvolen 2026); v úpravě obce tlačítko „Vedení zůstává“; pro správce
+  hromadně „↪ Starostové zůstávají“ s náhledem (předzaškrtnutí znovu zvolení 2026).
 - **Firebase Hosting** (v73): `firebase.json` (web `volby-vhos` v projektu moje-budky),
   `.firebaserc`, akce `.github/workflows/firebase-hosting.yml` nasazuje při pushi do
   main. Potřebuje secret `FIREBASE_SERVICE_ACCOUNT_MOJE_BUDKY`, web `volby-vhos` ve
