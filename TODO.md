@@ -5,6 +5,9 @@
   `m_vo_dom`, `m_vo_ost`, `m_predana`, `m_cisteni` (m³/rok, jen vlastní, ze svazku se
   nepřebírá). Tooltip (poslední rok s objemem), detail obce (tabulka + formulář),
   přehled cen (m³ vodné / stočné).
+- **Provozování v úpravě obce** (v83): správce přepne vodovod VHOS / jiný provozovatel
+  (+ pracoviště); mapa bere provozování ze záznamu obce, ne z hranice.json. Čistá
+  v hranice.json neprovozovaná.
 - **Import objemů m³** (v81): v přehledu 💧 Ceny vody tlačítko ⬆️ Nahrát objemy m³ (správce).
   Tabulka VHOS „Fakturace vodárenství dle obcí v m3“ – listy vodné / stočné (srážkové se
   přeskočí), u roku sloupce domácnosti · ostatní · celkem. „(předaná)“ → `m_predana`,
