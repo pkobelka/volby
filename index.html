@@ -1051,7 +1051,7 @@ function oiCisti(n){
 function oiTokEq(a,b){return a.length===b.length&&a.every(function(x,i){return x.indexOf(b[i])===0||b[i].indexOf(x)===0;});}
 function oiMatch(kod,lok){
   var cis=String(kod).replace(/^V[FO]/i,""), jm=oiCisti(lok), t=ciTok(jm);
-  var ul=((_CENY._lokality||{})[String(kod).toUpperCase()]||{}).obec, uo=ul&&OBCE.filter(function(o){return String(o.kod)===String(ul);});
+  var ul=(oiLokality()[String(kod).toUpperCase()]||{}).obec, uo=ul&&OBCE.filter(function(o){return String(o.kod)===String(ul);});
   if(uo&&uo.length)return {o:uo,jak:"přiřazeno dříve"};
   var byKod=OBCE.filter(function(o){return (o.vf||[]).some(function(v){return String(v).replace(/\s/g,"").toUpperCase().indexOf(String(kod).toUpperCase())>=0||(cis.length>=6&&String(v).indexOf(cis)>=0);});});
   if(byKod.length===1)return {o:byKod,jak:"kód v poli VF"};
@@ -1157,17 +1157,28 @@ function oiRender(){
   Array.prototype.forEach.call(mb.querySelectorAll(".oiObec"),function(sel){sel.addEventListener("change",function(){var d=C.data[+sel.getAttribute("data-i")];d.vyber=sel.value;delete d.chk;oiRender();});});
   document.getElementById("oiZpet").addEventListener("click",cenyPrehledOtevri);
   document.getElementById("oiUloz").addEventListener("click",function(){
-    var S=oiSouhrn(),upd={},n=0,msg=document.getElementById("oiMsg");
-    Object.keys(S).forEach(function(k){var p=k+"/"+C.rok+"/";n++;
-      Object.keys(S[k].v).forEach(function(f){upd[p+f]=S[k].v[f];});upd[p+"upravil"]=_USER.email;upd[p+"ts"]=firebase.database.ServerValue.TIMESTAMP;});
-    // zapamatuj prirazeni lokalita -> obec, priste se nabidne samo
-    C.data.forEach(function(d){if(d.chk&&d.vyber&&S[d.vyber])upd["_lokality/"+d.kod.toUpperCase()]={obec:d.vyber,lokalita:d.lok};});
-    if(!n){msg.textContent="Nic není zaškrtnuté.";return;}
-    msg.textContent="Ukládám "+n+" obcí…";
-    FDB.ref("volby_ceny").update(upd).then(function(){msg.textContent="✅ Uloženy objemy za rok "+C.rok+" u "+n+" obcí.";setTimeout(oiRender,400);})
-      .catch(function(e){var m=e&&e.message?e.message:String(e);msg.textContent="⚠️ "+(/permission/i.test(m)?"Firebase to nepovolil – chybí pravidlo pro volby_ceny.":m);});
+    var S=oiSouhrn(),ks=Object.keys(S),msg=document.getElementById("oiMsg"),btn=this;
+    if(!ks.length){msg.textContent="Nic není zaškrtnuté.";return;}
+    msg.textContent="Ukládám "+ks.length+" obcí…";btn.disabled=true;
+    // kazda obec zvlast: kdyz pravidla odmitnou jednu, ostatni se ulozi a je videt ktera
+    Promise.all(ks.map(function(k){
+      var u={upravil:_USER.email,ts:firebase.database.ServerValue.TIMESTAMP};Object.keys(S[k].v).forEach(function(f){u[f]=S[k].v[f];});
+      return FDB.ref("volby_ceny/"+k+"/"+C.rok).update(u).then(function(){return null;},function(e){return {o:S[k].o,m:e&&e.message?e.message:String(e)};});
+    })).then(function(r){
+      var ch=r.filter(Boolean), ok=ks.length-ch.length;
+      // zapamatuj prirazeni lokalita -> obec (Firebase, kdyz nepovoli, aspon v tomto prohlizeci)
+      var lok={};C.data.forEach(function(d){if(d.chk&&d.vyber&&S[d.vyber])lok[d.kod.toUpperCase()]={obec:d.vyber,lokalita:d.lok};});
+      oiLokalityLokalne(lok);
+      FDB.ref("volby_ceny/_lokality").update(lok).catch(function(){});
+      btn.disabled=false;
+      if(!ch.length){msg.textContent="✅ Uloženy objemy za rok "+C.rok+" u "+ok+" obcí.";setTimeout(oiRender,400);return;}
+      msg.innerHTML=(ok?"✅ Uloženo u "+ok+" obcí. ":"")+"⚠️ Nepodařilo se u "+ch.length+" obcí: "+esc(ch.slice(0,8).map(function(x){return x.o.nazev;}).join(", "))+(ch.length>8?"…":"")+
+        "<br><span style='font-size:.8rem'>"+esc(/permission/i.test(ch[0].m)?"Firebase zápis nepovolil (pravidla pro volby_ceny – objem fakturace má pole m_vf_dom, m_vf_ost, m_vo_dom, m_vo_ost, m_predana, m_cisteni).":ch[0].m)+"</span>";
+    });
   });
 }
+function oiLokality(){var l={};try{l=JSON.parse(localStorage.getItem("volby_lokality")||"{}")||{};}catch(e){}return Object.assign(l,_CENY._lokality||{});}
+function oiLokalityLokalne(x){try{var l=JSON.parse(localStorage.getItem("volby_lokality")||"{}")||{};localStorage.setItem("volby_lokality",JSON.stringify(Object.assign(l,x)));}catch(e){}}
 function oiSouhrn(){
   var S={};
   _OI.data.forEach(function(d){if(!d.chk||!d.vyber||!d.h)return;
@@ -4789,7 +4800,7 @@ document.getElementById("acBtn").addEventListener("click",acOpen);
 document.getElementById("acFile").addEventListener("change",onAcFile);
 document.getElementById("kandFile").addEventListener("change",onKandFile);
 document.getElementById("importFile").addEventListener("change",onImportFiles);
-var VERZE="2026-11-11 · v81";
+var VERZE="2026-11-11 · v82";
 try{document.getElementById("verze").textContent="verze "+VERZE;}catch(e){}
 </script>
 </body></html>

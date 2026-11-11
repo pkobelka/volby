@@ -11,7 +11,8 @@
   „převzatá k čištění“ → `m_cisteni`. Párování: dříve uložené přiřazení
   (`volby_ceny/_lokality/<VF…>` = {obec, lokalita}), kód/název v poli VF obce, název obce,
   začátek názvu. Víc lokalit u jedné obce se sečte, souhrn za obce ukazuje rozdíl proti
-  aplikaci. Rok jen s objemem už neschová starší cenu (`cenaRokyS`).
+  aplikaci. Ukládá se po obcích (v82), přiřazení zvlášť – když ho Firebase nepovolí,
+  zůstane v prohlížeči (localStorage `volby_lokality`). Rok jen s objemem už neschová starší cenu (`cenaRokyS`).
 - **Ceny svazků** (v77): `volby_ceny/sv_<id svazku>/<rok>`; obec ve svazku přebírá
   každou cenu svazku, kterou sama nemá (`cenaRok`). Zadání v detailu svazku (💧 Ceny
   vody svazku) nebo importem z Excelu – řádek jde přiřadit ke svazku. V mapě poznámka
