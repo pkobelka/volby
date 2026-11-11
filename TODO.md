@@ -4,7 +4,14 @@
 - **Objem fakturace** (v79): ve `volby_ceny/<kod>/<rok>` pole `m_vf_dom`, `m_vf_ost`,
   `m_vo_dom`, `m_vo_ost`, `m_predana`, `m_cisteni` (m³/rok, jen vlastní, ze svazku se
   nepřebírá). Tooltip (poslední rok s objemem), detail obce (tabulka + formulář),
-  přehled cen (m³ vodné / stočné). **Čeká na tabulku objemů → doplnit import.**
+  přehled cen (m³ vodné / stočné).
+- **Import objemů m³** (v81): v přehledu 💧 Ceny vody tlačítko ⬆️ Nahrát objemy m³ (správce).
+  Tabulka VHOS „Fakturace vodárenství dle obcí v m3“ – listy vodné / stočné (srážkové se
+  přeskočí), u roku sloupce domácnosti · ostatní · celkem. „(předaná)“ → `m_predana`,
+  „převzatá k čištění“ → `m_cisteni`. Párování: dříve uložené přiřazení
+  (`volby_ceny/_lokality/<VF…>` = {obec, lokalita}), kód/název v poli VF obce, název obce,
+  začátek názvu. Víc lokalit u jedné obce se sečte, souhrn za obce ukazuje rozdíl proti
+  aplikaci. Rok jen s objemem už neschová starší cenu (`cenaRokyS`).
 - **Ceny svazků** (v77): `volby_ceny/sv_<id svazku>/<rok>`; obec ve svazku přebírá
   každou cenu svazku, kterou sama nemá (`cenaRok`). Zadání v detailu svazku (💧 Ceny
   vody svazku) nebo importem z Excelu – řádek jde přiřadit ke svazku. V mapě poznámka
