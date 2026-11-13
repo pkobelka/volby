@@ -1358,10 +1358,40 @@ function zvolen2026(o,jm){
   return zv.some(function(z){var u=jmTok(z.jmeno);return t.every(function(x){return u.indexOf(x)>=0;});});
 }
 function zustavaBtn(o,f){
-  if(!o[f])return "<span class='prazdne'>"+(f==="starosta"?"zatím nezvolen (✏️ Upravit)":"—")+"</span>";
+  var sel=vyberZvol(o,f);
+  if(!o[f])return sel||"<span class='prazdne'>"+(f==="starosta"?"zatím nezvolen (✏️ Upravit)":"—")+"</span>";
   var z=zvolen2026(o,o[f]);
-  return "<button class='btn ghost small zustBtn' data-f='"+f+"' title='Převzít jméno, telefon a e-mail z období 2022–2026'>↪ zůstává "+esc(o[f])+"</button>"+
+  return sel+" <button class='btn ghost small zustBtn' data-f='"+f+"' title='Převzít jméno, telefon a e-mail z období 2022–2026'>↪ zůstává "+esc(o[f])+"</button>"+
     (z===true?" <span style='color:#2f6b3c;font-size:.78rem'>✔ zvolen 2026</span>":z===false?" <span style='color:#b5453a;font-size:.78rem'>není mezi zvolenými 2026</span>":"");
+}
+/* ---- výběr starosty / místostarosty ze zvolených zastupitelů 2026 ---- */
+function vyberZvol(o,f,id,krome){
+  var zv=zvoleniV(o,"2026");if(!zv.length)return "";
+  var bez=jmTok(krome||"");
+  var opt=zv.filter(function(z){var t=jmTok(z.jmeno);return !(bez.length&&t.length&&t.every(function(x){return bez.indexOf(x)>=0;}));})
+    .map(function(z){return "<option value=\""+esc(z.jmeno)+"\">"+esc(z.jmeno)+(z.strana?" ("+esc(z.strana)+")":"")+"</option>";}).join("");
+  if(!opt)return "";
+  return "<select class='zvolSel' data-f='"+f+"'"+(id?" id='"+id+"'":"")+" style='font-size:.8rem;max-width:100%' onclick='event.stopPropagation()'>"+
+    "<option value=''>"+(krome&&f==="mistostarosta"?"＋ přidat dalšího ze zvolených 2026…":"vybrat ze zvolených 2026…")+"</option>"+opt+"</select>";
+}
+// telefon/e-mail převezme jen tehdy, když vybraný je tentýž člověk jako v 2022–2026
+function kontaktZ2022(o,jm){
+  var t=jmTok(jm),u={};if(!t.length)return u;
+  ["starosta","mistostarosta"].forEach(function(f){
+    if(u.tel||u.email)return;
+    var lid=String(o[f]||"").split(",");
+    if(lid.length!==1)return;
+    var w=jmTok(lid[0]);if(w.length&&t.every(function(x){return w.indexOf(x)>=0;})){u.tel=o[f+"_tel"]||"";u.email=o[f+"_email"]||"";}
+  });
+  return u;
+}
+function zvolUloz(o,f,jm){
+  if(!jm)return;
+  var u={upravil:_USER.email,upravil_ts:Date.now()}, k=kontaktZ2022(o,jm);
+  if(f==="mistostarosta"&&o.mistostarosta_2026){u.mistostarosta_2026=o.mistostarosta_2026+", "+jm;}
+  else{u[f+"_2026"]=jm;if(k.tel)u[f+"_2026_tel"]=k.tel;if(k.email)u[f+"_2026_email"]=k.email;}
+  FDB.ref("volby_obce/"+o.kod).update(u).then(function(){Object.assign(o,u);renderModal();})
+    .catch(function(e){alert("⚠️ "+(e&&e.message?e.message:e));});
 }
 function zustavaUpd(o,f){
   var u={};[[""],["_tel"],["_email"]].forEach(function(x){var k=f+"_2026"+x[0];if(!o[k]&&o[f+x[0]])u[k]=o[f+x[0]];});
@@ -1755,7 +1785,7 @@ function kandKde(o,jmeno,rok){
   return " <span class='prazdne'>("+(naj.k.p?naj.k.p+". na listině ":"")+
     (naj.st.c?"č. "+naj.st.c+" ":"")+esc(naj.st.nazev||"")+")</span>";
 }
-// řádek na kartě: čím obec odpovídá dotazu (kromě názvu, ten je v nadpisu)
+// řádek na kartě: čím obec odpovídá dotazu (krome názvu, ten je v nadpisu)
 function hitKand(o,q,rok){
   rok=rok||"2026";
   var kk=kjmena(o,rok).filter(function(x){return qhas(x,q);});
@@ -2846,8 +2876,8 @@ function renderModal(){
       "<datalist id='provDL'>"+Object.keys(provList).sort(function(a,b){return a.localeCompare(b,"cs");}).map(function(v){return "<option value=\""+esc(v)+"\">";}).join("")+"</datalist>"+
       "<div class='sekce'>Vedení obce 2026–2030 <span class='obd'>· po ustavujícím zastupitelstvu</span></div>"+
       ((o.starosta||o.mistostarosta)?"<div class='r'><b></b><span><button type='button' class='btn ghost small' id='e_zust'>↪ Vedení zůstává – převzít ze 2022–2026</button> <span class='hint' style='margin:0'>doplní jen prázdná pole</span></span></div>":"")+
-      editRow("Starosta 2026–2030","e_starosta_2026",o.starosta_2026)+editRow("Starosta 2026 – telefon","e_starosta_2026_tel",o.starosta_2026_tel)+editRow("Starosta 2026 – e-mail","e_starosta_2026_email",o.starosta_2026_email)+
-      editRow("Místostarosta 2026–2030","e_mistostarosta_2026",o.mistostarosta_2026)+editRow("Místostarosta 2026 – telefon","e_mistostarosta_2026_tel",o.mistostarosta_2026_tel)+editRow("Místostarosta 2026 – e-mail","e_mistostarosta_2026_email",o.mistostarosta_2026_email)+
+      editRow("Starosta 2026–2030","e_starosta_2026",o.starosta_2026)+(vyberZvol(o,"starosta","e_sel_starosta")?"<div class='r'><b></b><span>"+vyberZvol(o,"starosta","e_sel_starosta")+"</span></div>":"")+editRow("Starosta 2026 – telefon","e_starosta_2026_tel",o.starosta_2026_tel)+editRow("Starosta 2026 – e-mail","e_starosta_2026_email",o.starosta_2026_email)+
+      editRow("Místostarosta 2026–2030","e_mistostarosta_2026",o.mistostarosta_2026)+(vyberZvol(o,"mistostarosta","e_sel_mistostarosta")?"<div class='r'><b></b><span>"+vyberZvol(o,"mistostarosta","e_sel_mistostarosta")+" <span class='hint' style='margin:0'>další výběr přidá dalšího místostarostu</span></span></div>":"")+editRow("Místostarosta 2026 – telefon","e_mistostarosta_2026_tel",o.mistostarosta_2026_tel)+editRow("Místostarosta 2026 – e-mail","e_mistostarosta_2026_email",o.mistostarosta_2026_email)+
       "<div class='sekce'>Úprava kontaktů <span class='obd'>· období 2022–2026</span></div>"+
       editRow("Starosta","e_starosta",o.starosta)+editRow("Starosta – telefon","e_starosta_tel",o.starosta_tel)+editRow("Starosta – e-mail","e_starosta_email",o.starosta_email)+
       editRow("Místostarosta","e_mistostarosta",o.mistostarosta)+editRow("Místostarosta – telefon","e_mistostarosta_tel",o.mistostarosta_tel)+editRow("Místostarosta – e-mail","e_mistostarosta_email",o.mistostarosta_email)+
@@ -2870,7 +2900,7 @@ function renderModal(){
       det("💧 Ceny vody","<span id='cenySum'>"+esc(cenaSouhrn(o.kod))+"</span>","<div id='cenyBox'>"+cenyDetailHTML(o.kod)+"</div>",false)+
       "<div class='sekce'>Vedení obce <span class='obd'>· období 2026–2030</span></div>"+
       det("Starosta 2026–2030",o.starosta_2026?pz(o.starosta_2026)+zrusBtn("starosta"):zustavaBtn(o,"starosta"),viewRow("Telefon",o.starosta_2026_tel,"tel")+viewRow("E-mail",o.starosta_2026_email,"email"),!!o.starosta_2026)+
-      det("Místostarosta 2026–2030",o.mistostarosta_2026?pz(o.mistostarosta_2026)+zrusBtn("mistostarosta"):zustavaBtn(o,"mistostarosta"),viewRow("Telefon",o.mistostarosta_2026_tel,"tel")+viewRow("E-mail",o.mistostarosta_2026_email,"email"),false)+
+      det("Místostarosta 2026–2030",o.mistostarosta_2026?pz(o.mistostarosta_2026)+zrusBtn("mistostarosta")+" "+vyberZvol(o,"mistostarosta","",o.mistostarosta_2026+","+(o.starosta_2026||"")):zustavaBtn(o,"mistostarosta"),viewRow("Telefon",o.mistostarosta_2026_tel,"tel")+viewRow("E-mail",o.mistostarosta_2026_email,"email"),false)+
       "<div class='sekce'>Kontakty <span class='obd'>· období 2022–2026</span></div>"+
       det("Starosta",pz(o.starosta),viewRow("Telefon",o.starosta_tel,"tel")+viewRow("E-mail",o.starosta_email,"email"),true)+
       det("Místostarosta",pz(o.mistostarosta),viewRow("Telefon",o.mistostarosta_tel,"tel")+viewRow("E-mail",o.mistostarosta_email,"email"),false)+
@@ -2936,6 +2966,8 @@ function renderModal(){
   if(!_EDIT){pgNavazSoubory(o);pzNavaz(o);cenyNavaz(o);
     Array.prototype.forEach.call(document.querySelectorAll("#mbody .zustBtn"),function(b){b.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();
       zustavaUloz(o,b.getAttribute("data-f"));});});
+    Array.prototype.forEach.call(document.querySelectorAll("#mbody .zvolSel"),function(sl){sl.addEventListener("change",function(){
+      var jm=sl.value;if(!jm)return;sl.value="";zvolUloz(o,sl.getAttribute("data-f"),jm);});});
     Array.prototype.forEach.call(document.querySelectorAll("#mbody .zrusBtn"),function(b){b.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();
       zustavaZrus(o,b.getAttribute("data-f"));});});}
   // Okno se zobrazuje až po renderModal(), takže scrollovat teď by bylo do
@@ -2946,6 +2978,19 @@ function renderModal(){
     if(ez)ez.addEventListener("click",function(){
       [["starosta",""],["starosta","_tel"],["starosta","_email"],["mistostarosta",""],["mistostarosta","_tel"],["mistostarosta","_email"]].forEach(function(x){
         var el=document.getElementById("e_"+x[0]+"_2026"+x[1]), v=o[x[0]+x[1]];if(el&&!el.value.trim()&&v)el.value=v;});
+    });
+    ["starosta","mistostarosta"].forEach(function(f){
+      var sl=document.getElementById("e_sel_"+f);if(!sl)return;
+      sl.addEventListener("change",function(){
+        var jm=sl.value;if(!jm)return;sl.value="";
+        var el=document.getElementById("e_"+f+"_2026"), cur=el.value.trim();
+        if(f==="mistostarosta"&&cur){if(jmTok(cur).join(" ").indexOf(jmTok(jm).join(" "))<0)el.value=cur+", "+jm;return;}
+        el.value=jm;
+        var k=kontaktZ2022(o,jm);
+        var t=document.getElementById("e_"+f+"_2026_tel"), m=document.getElementById("e_"+f+"_2026_email");
+        var stare=[o.starosta_tel,o.starosta_email,o.mistostarosta_tel,o.mistostarosta_email].filter(Boolean);
+        [[t,k.tel],[m,k.email]].forEach(function(x){if(x[1])x[0].value=x[1];else if(stare.indexOf(x[0].value.trim())>=0)x[0].value="";});
+      });
     });
     var ek=document.getElementById("e_kanal");
     var ev=document.getElementById("e_vodovod");
